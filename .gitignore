@@ -1,0 +1,11 @@
+.vs/
+[Dd]ebug/
+[Rr]elease/
+*.vsidx
+*.suo
+*.user
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+env/
