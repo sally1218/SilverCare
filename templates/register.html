@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>註冊 - 銀髮族居家復健系統</title>
+    <style>
+        :root {
+            --reg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --success-bg: #d4edda;
+            --success-text: #155724;
+            --success-border: #c3e6cb;
+            --error-bg: #f8d7da;
+            --error-text: #721c24;
+            --error-border: #f5c6cb;
+            --warning-bg: #fff3cd;
+            --warning-text: #856404;
+            --warning-border: #ffeeba;
+        }
+
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            background: #f0f2f5;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .card {
+            background: white;
+            padding: 40px;
+            border-radius: 30px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            text-align: center;
+            width: 380px;
+        }
+
+        h1 {
+            color: #2d3436;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        p {
+            color: #636e72;
+            margin-bottom: 25px;
+        }
+
+        /* 訊息提示框樣式 - 用於顯示註冊結果 */
+        .flash-message {
+            padding: 14px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 15px;
+            font-weight: bold;
+            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        /* 根據 Flask 傳來的類別變換顏色 */
+        .success {
+            background-color: var(--success-bg);
+            color: var(--success-text);
+            border-color: var(--success-border);
+        }
+
+        .danger {
+            background-color: var(--error-bg);
+            color: var(--error-text);
+            border-color: var(--error-border);
+        }
+
+        .warning {
+            background-color: var(--warning-bg);
+            color: var(--warning-text);
+            border-color: var(--warning-border);
+        }
+
+        .input-group {
+            text-align: left;
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #34495e;
+            font-weight: bold;
+        }
+
+        input {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #eee;
+            border-radius: 12px;
+            box-sizing: border-box;
+            font-size: 16px;
+            transition: 0.3s;
+        }
+
+            input:focus {
+                border-color: #667eea;
+                outline: none;
+                box-shadow: 0 0 8px rgba(102, 126, 234, 0.2);
+            }
+
+        .btn-reg {
+            width: 100%;
+            background: var(--reg-gradient);
+            color: white;
+            border: none;
+            padding: 16px;
+            border-radius: 12px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.3s;
+            margin-top: 10px;
+        }
+
+            .btn-reg:hover {
+                opacity: 0.9;
+                transform: translateY(-2px);
+                box-shadow: 0 5px 15px rgba(118, 75, 162, 0.3);
+            }
+
+        .footer {
+            margin-top: 25px;
+            font-size: 14px;
+            color: #636e72;
+        }
+
+            .footer a {
+                color: #667eea;
+                text-decoration: none;
+                font-weight: bold;
+            }
+
+                .footer a:hover {
+                    text-decoration: underline;
+                }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <h1>建立新帳號</h1>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div class="flash-message {{ category }}">
+            {% if category == 'success' %} ✅ {% else %} ⚠️ {% endif %}
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        <form action="/register" method="POST">
+            <div class="input-group">
+                <label>設定帳號</label>
+                <input type="text" name="username" placeholder="請輸入您想使用的帳號" required>
+            </div>
+
+            <div class="input-group">
+                <label>設定密碼</label>
+                <input type="password" name="password" placeholder="請輸入密碼" required>
+            </div>
+
+            <button type="submit" class="btn-reg">立即註冊</button>
+        </form>
+
+        <div class="footer">
+            已經有帳號了？ <a href="/login_page">返回登入頁面</a>
+        </div>
+    </div>
+
+</body>
+</html>

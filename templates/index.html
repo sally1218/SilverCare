@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <title>銀髮族居家復健系統</title>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        /* 導航欄 */
+        .nav-header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 25px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .menu-btn {
+            font-size: 24px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            color: white;
+        }
+
+        /* 側邊選單樣式 */
+        .sidebar {
+            height: 100%;
+            width: 0;
+            position: fixed;
+            z-index: 2000;
+            top: 0;
+            right: 0;
+            background-color: white;
+            overflow-x: hidden;
+            transition: 0.5s;
+            padding-top: 60px;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.1);
+        }
+
+        .sidebar-content {
+            padding: 20px;
+            color: #2c3e50;
+        }
+
+        .user-info {
+            border-bottom: 2px solid #eee;
+            padding-bottom: 20px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #e74c3c;
+        }
+
+        .sidebar a {
+            padding: 15px;
+            text-decoration: none;
+            font-size: 18px;
+            color: #2c3e50;
+            display: block;
+            transition: 0.3s;
+            border-radius: 8px;
+        }
+
+            .sidebar a:hover {
+                background-color: #f0f2f5;
+                color: #3498db;
+            }
+
+        .closebtn {
+            position: absolute;
+            top: 10px;
+            left: 20px;
+            font-size: 36px;
+            cursor: pointer;
+        }
+
+        /* YouTube 容器優化 */
+        .video-container {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 比例 */
+            height: 0;
+            overflow: hidden;
+            border-radius: 10px;
+            background: #000;
+        }
+
+            .video-container iframe {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                border: 0;
+            }
+
+        /* 主容器與影片區 */
+        .container {
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .step-bar {
+            width: 85%;
+            background: white;
+            padding: 15px;
+            border-radius: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            border-left: 10px solid #3498db;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+
+        .video-wrapper {
+            display: flex;
+            gap: 20px;
+            width: 95%;
+            justify-content: center;
+        }
+
+        .box {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            padding: 15px;
+            text-align: center;
+            flex: 1;
+        }
+
+            .box h3 {
+                margin-top: 0;
+                color: #34495e;
+                border-bottom: 2px solid #f0f2f5;
+                padding-bottom: 10px;
+            }
+
+        .stream-img {
+            border-radius: 10px;
+            width: 100%;
+            height: auto;
+            background: #000;
+        }
+
+        /* 按鈕樣式 */
+        .save-btn {
+            background: #28a745;
+            color: white !important;
+            text-align: center;
+            font-weight: bold;
+            margin-top: 10px;
+            border: none;
+            width: 100%;
+            cursor: pointer;
+            display: block;
+            padding: 15px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-size: 18px;
+        }
+
+            .save-btn:hover {
+                background: #218838;
+            }
+
+        .logout-btn {
+            color: #e74c3c !important;
+            font-weight: bold;
+            margin-top: 30px;
+            border: 1px solid #e74c3c;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="mySidebar" class="sidebar">
+        <span class="closebtn" onclick="closeNav()">&times;</span>
+        <div class="sidebar-content">
+            <div class="user-info">
+                <h3>👤 使用者資訊</h3>
+                <p>姓名：<strong>{{ username }}</strong> 先生/女士</p>
+            </div>
+
+            <div class="stat-box">
+                <p>歷史運動總計</p>
+                <span class="stat-number">{{ total_count }}</span> 次
+            </div>
+
+            <form action="/save_exercise" method="POST">
+                <button type="submit" class="save-btn">儲存本次紀錄</button>
+            </form>
+
+            <a href="#" style="margin-top: 20px;">歷史數據圖表</a>
+            <a href="/logout" class="logout-btn">登出</a>
+        </div>
+    </div>
+
+    <div class="nav-header">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 20px; font-weight: bold;">銀髮族居家復健系統</span>
+        </div>
+        <button class="menu-btn" onclick="openNav()">☰ 選單</button>
+    </div>
+
+    <div class="container">
+        <div class="step-bar">
+            <h2 id="step-text" style="margin: 0;">目前偵測狀態：<span style="color: #3498db;">{{ stage }}</span></h2>
+        </div>
+
+        <div class="video-wrapper">
+            <div class="box">
+                <h3>標準示範</h3>
+                <div class="video-container">
+                    <iframe src="https://www.youtube.com/embed/dkzgOJdAo_Y?autoplay=1&mute=1&loop=1&playlist=dkzgOJdAo_Y&controls=0&modestbranding=1"
+                            title="YouTube video player"
+                            frameborder="0"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowfullscreen>
+                    </iframe>
+                </div>
+            </div>
+
+            <div class="box">
+                <h3>您的即時偵測</h3>
+                <img src="/mjpeg" class="stream-img" alt="相機串流">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function openNav() { document.getElementById("mySidebar").style.width = "300px"; }
+        function closeNav() { document.getElementById("mySidebar").style.width = "0"; }
+    </script>
+</body>
+</html>
