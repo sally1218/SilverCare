@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>銀髮族居家復健系統</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         body {
             font-family: 'Microsoft JhengHei', sans-serif;
@@ -52,75 +53,36 @@
             color: #2c3e50;
         }
 
-        .user-info {
-            border-bottom: 2px solid #eee;
-            padding-bottom: 20px;
-            margin-bottom: 20px;
-        }
-
-        .stat-box {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 10px;
-            margin-bottom: 10px;
-        }
-
-        .stat-number {
-            font-size: 24px;
-            font-weight: bold;
-            color: #e74c3c;
-        }
-
-        .sidebar a {
+        .sidebar button, .sidebar a {
             padding: 15px;
             text-decoration: none;
             font-size: 18px;
             color: #2c3e50;
             display: block;
-            transition: 0.3s;
             border-radius: 8px;
+            width: 100%;
+            text-align: left;
+            background: none;
+            border: none;
+            cursor: pointer;
+            transition: 0.3s;
         }
 
-            .sidebar a:hover {
+            .sidebar button:hover, .sidebar a:hover {
                 background-color: #f0f2f5;
                 color: #3498db;
             }
 
-        .closebtn {
-            position: absolute;
-            top: 10px;
-            left: 20px;
-            font-size: 36px;
-            cursor: pointer;
-        }
-
-        /* YouTube 容器優化 */
-        .video-container {
-            position: relative;
-            padding-bottom: 56.25%; /* 16:9 比例 */
-            height: 0;
-            overflow: hidden;
-            border-radius: 10px;
-            background: #000;
-        }
-
-            .video-container iframe {
-                position: absolute;
-                top: 0;
-                left: 0;
-                width: 100%;
-                height: 100%;
-                border: 0;
-            }
-
-        /* 主容器與影片區 */
+        /* 主容器 */
         .container {
             padding: 20px;
             display: flex;
             flex-direction: column;
             align-items: center;
+            min-height: calc(100vh - 80px);
         }
 
+        /* 狀態條 */
         .step-bar {
             width: 85%;
             background: white;
@@ -132,11 +94,13 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
 
+        /* 影片與偵測區佈局修正 */
         .video-wrapper {
             display: flex;
             gap: 20px;
             width: 95%;
             justify-content: center;
+            align-items: flex-start;
         }
 
         .box {
@@ -146,6 +110,7 @@
             padding: 15px;
             text-align: center;
             flex: 1;
+            min-width: 0;
         }
 
             .box h3 {
@@ -155,100 +120,231 @@
                 padding-bottom: 10px;
             }
 
-        .stream-img {
+        /* 影像比例鎖定：解決影像縮水問題 */
+        .video-container, .stream-img {
+            width: 100%;
             border-radius: 10px;
-            width: 100%;
-            height: auto;
             background: #000;
-        }
-
-        /* 按鈕樣式 */
-        .save-btn {
-            background: #28a745;
-            color: white !important;
-            text-align: center;
-            font-weight: bold;
-            margin-top: 10px;
-            border: none;
-            width: 100%;
-            cursor: pointer;
+            aspect-ratio: 4 / 3;
+            object-fit: cover;
             display: block;
-            padding: 15px;
-            border-radius: 8px;
-            text-decoration: none;
-            font-size: 18px;
         }
 
-            .save-btn:hover {
-                background: #218838;
+        .video-container {
+            position: relative;
+            height: auto;
+        }
+
+            .video-container iframe {
+                width: 100%;
+                height: 100%;
+                border-radius: 10px;
+                aspect-ratio: 4 / 3;
+                border: 0;
             }
+
+        /* 圖表區優化：不滾動 */
+        #chart-section .box {
+            max-width: 900px;
+            flex: 0 1 auto;
+            overflow: hidden;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 350px;
+            width: 100%;
+            margin-top: 15px;
+        }
+
+        .tab-btn {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 5px;
+            background: #ecf0f1;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+            .tab-btn.active {
+                background: #3498db;
+                color: white;
+            }
+
+        /* 儲存成功彈窗 */
+        #save-toast {
+            display: none;
+            position: fixed;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #27ae60;
+            color: white;
+            padding: 12px 25px;
+            border-radius: 50px;
+            z-index: 9999;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            font-weight: bold;
+        }
 
         .logout-btn {
             color: #e74c3c !important;
             font-weight: bold;
             margin-top: 30px;
-            border: 1px solid #e74c3c;
-            text-align: center;
+            border: 1px solid #e74c3c !important;
+            text-align: center !important;
         }
     </style>
 </head>
 <body>
 
+    <div id="save-toast">✅ 復健紀錄已自動儲存！</div>
+
     <div id="mySidebar" class="sidebar">
-        <span class="closebtn" onclick="closeNav()">&times;</span>
+        <span style="position:absolute;top:10px;left:20px;font-size:30px;cursor:pointer" onclick="closeNav()">&times;</span>
         <div class="sidebar-content">
-            <div class="user-info">
-                <h3>👤 使用者資訊</h3>
-                <p>姓名：<strong>{{ username }}</strong> 先生/女士</p>
+            <div style="border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
+                <h3>👤 {{ username }} 您好</h3>
             </div>
-
-            <div class="stat-box">
-                <p>歷史運動總計</p>
-                <span class="stat-number">{{ total_count }}</span> 次
-            </div>
-
-            <form action="/save_exercise" method="POST">
-                <button type="submit" class="save-btn">儲存本次紀錄</button>
-            </form>
-
-            <a href="#" style="margin-top: 20px;">歷史數據圖表</a>
-            <a href="/logout" class="logout-btn">登出</a>
+            <button onclick="showSection('live')">📹 即時復健偵測</button>
+            <button onclick="showSection('charts')">📈 歷史數據圖表</button>
+            <a href="/logout" class="logout-btn">登出系統</a>
         </div>
     </div>
 
     <div class="nav-header">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 20px; font-weight: bold;">銀髮族居家復健系統</span>
-        </div>
+        <span>銀髮族居家復健系統</span>
         <button class="menu-btn" onclick="openNav()">☰ 選單</button>
     </div>
 
     <div class="container">
-        <div class="step-bar">
-            <h2 id="step-text" style="margin: 0;">目前偵測狀態：<span style="color: #3498db;">{{ stage }}</span></h2>
+        <div class="step-bar" id="status-bar">
+            <h2 style="margin: 0;">目前狀態：<span id="live-stage" style="color: #3498db;">{{ stage }}</span> | 本次計數：<span id="live-count" style="color: #e74c3c;">0</span></h2>
         </div>
 
-        <div class="video-wrapper">
+        <div id="live-section" class="video-wrapper">
             <div class="box">
                 <h3>標準示範</h3>
                 <div class="video-container">
-                    <iframe src="https://www.youtube.com/embed/dkzgOJdAo_Y?autoplay=1&mute=1&loop=1&playlist=dkzgOJdAo_Y&controls=0&modestbranding=1"
-                            title="YouTube video player"
-                            frameborder="0"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            allowfullscreen>
-                    </iframe>
+                    <iframe src="https://www.youtube.com/embed/dkzgOJdAo_Y?autoplay=1&mute=1&loop=1&playlist=dkzgOJdAo_Y&controls=0" allowfullscreen></iframe>
                 </div>
             </div>
-
             <div class="box">
                 <h3>您的即時偵測</h3>
-                <img src="/mjpeg" class="stream-img" alt="相機串流">
+                <img src="/mjpeg" class="stream-img" alt="正在連接攝影機...">
+            </div>
+        </div>
+
+        <div id="chart-section" class="video-wrapper" style="display: none;">
+            <div class="box">
+                <h3>📊 復健歷史趨勢分析</h3>
+                <div style="margin-bottom: 15px;">
+                    <button id="btn-total" class="tab-btn active" onclick="updateChart('total')">總數據</button>
+                    <button id="btn-squat" class="tab-btn" onclick="updateChart('squat')">深蹲</button>
+                    <button id="btn-stand" class="tab-btn" onclick="updateChart('sit_to_stand')">座椅起立</button>
+                </div>
+                <div class="chart-container">
+                    <canvas id="myChart"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
+        // 1. 初始化圖表數據
+        const chartData = JSON.parse('{{ chart_data | tojson | safe }}') || {};
+        const dates = Object.keys(chartData).sort();
+        let myChart = null;
+
+        // 2. 即時更新狀態功能
+        function refreshStatus() {
+            fetch('/get_status')
+                .then(res => res.json())
+                .then(data => {
+                    document.getElementById('live-stage').innerText = data.stage;
+                    document.getElementById('live-count').innerText = data.count;
+
+                    // 顏色反饋：下蹲變橘色，站立變藍色
+                    document.getElementById('live-stage').style.color = (data.stage === "DOWN") ? "#e67e22" : "#3498db";
+
+                    // 檢查是否觸發儲存通知
+                    if(data.saved === true) {
+                        const toast = document.getElementById('save-toast');
+                        toast.style.display = 'block';
+                        // 2.5秒後自動消失並重新整理數據
+                        setTimeout(() => {
+                            toast.style.display = 'none';
+                            location.reload();
+                        }, 2500);
+                    }
+                })
+                .catch(e => console.log("等待伺服器連線..."));
+        }
+
+        // 每 0.5 秒抓取一次最新狀態
+        setInterval(refreshStatus, 500);
+
+        // 3. 切換顯示頁面邏輯
+        function showSection(section) {
+            const statusBar = document.getElementById('status-bar');
+            const liveSec = document.getElementById('live-section');
+            const chartSec = document.getElementById('chart-section');
+
+            if (section === 'live') {
+                statusBar.style.display = 'block';
+                liveSec.style.display = 'flex';
+                chartSec.style.display = 'none';
+            } else {
+                statusBar.style.display = 'none'; // 切換到圖表時隱藏目前狀態欄
+                liveSec.style.display = 'none';
+                chartSec.style.display = 'flex';
+                setTimeout(() => { updateChart('total'); }, 100);
+            }
+            closeNav();
+        }
+
+        // 4. 圖表渲染邏輯
+        function updateChart(type) {
+            const ctx = document.getElementById('myChart').getContext('2d');
+
+            // 更新按鈕樣式
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            const activeBtnId = (type === 'sit_to_stand') ? 'btn-stand' : 'btn-' + type;
+            const targetBtn = document.getElementById(activeBtnId);
+            if(targetBtn) targetBtn.classList.add('active');
+
+            if (myChart) myChart.destroy();
+
+            const dataValues = dates.map(d => {
+                if (type === 'total') return (chartData[d].squat || 0) + (chartData[d].sit_to_stand || 0);
+                return (chartData[d][type] || 0);
+            });
+
+            myChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: dates,
+                    datasets: [{
+                        label: '運動次數',
+                        data: dataValues,
+                        backgroundColor: '#3498db',
+                        borderRadius: 5
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                    },
+                    plugins: {
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
         function openNav() { document.getElementById("mySidebar").style.width = "300px"; }
         function closeNav() { document.getElementById("mySidebar").style.width = "0"; }
     </script>
