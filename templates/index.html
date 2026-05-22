@@ -12,7 +12,6 @@
             overflow-x: hidden;
         }
 
-        /* 導航欄 */
         .nav-header {
             background: #2c3e50;
             color: white;
@@ -33,7 +32,6 @@
             color: white;
         }
 
-        /* 側邊選單樣式 */
         .sidebar {
             height: 100%;
             width: 0;
@@ -73,7 +71,6 @@
                 color: #3498db;
             }
 
-        /* 主容器 */
         .container {
             padding: 20px;
             display: flex;
@@ -82,11 +79,10 @@
             min-height: calc(100vh - 80px);
         }
 
-        /* 狀態條 */
         .step-bar {
             width: 85%;
             background: white;
-            padding: 15px;
+            padding: 20px;
             border-radius: 15px;
             margin-bottom: 20px;
             text-align: center;
@@ -94,13 +90,21 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.05);
         }
 
-        /* 影片與偵測區佈局修正 */
         .video-wrapper {
             display: flex;
             gap: 20px;
             width: 95%;
             justify-content: center;
             align-items: flex-start;
+        }
+
+        .chart-row {
+            display: none; 
+            flex-direction: column;
+            gap: 20px;
+            width: 95%;
+            max-width: 900px;
+            margin: 0 auto;
         }
 
         .box {
@@ -111,6 +115,7 @@
             text-align: center;
             flex: 1;
             min-width: 0;
+            margin-bottom: 20px;
         }
 
             .box h3 {
@@ -120,7 +125,6 @@
                 padding-bottom: 10px;
             }
 
-        /* 影像比例鎖定：解決影像縮水問題 */
         .video-container, .stream-img {
             width: 100%;
             border-radius: 10px;
@@ -143,13 +147,6 @@
                 border: 0;
             }
 
-        /* 圖表區優化：不滾動 */
-        #chart-section .box {
-            max-width: 900px;
-            flex: 0 1 auto;
-            overflow: hidden;
-        }
-
         .chart-container {
             position: relative;
             height: 350px;
@@ -157,22 +154,16 @@
             margin-top: 15px;
         }
 
-        .tab-btn {
-            padding: 10px 20px;
-            margin: 5px;
-            border: none;
-            border-radius: 5px;
-            background: #ecf0f1;
-            cursor: pointer;
-            font-weight: bold;
+        .fatigue-hint {
+            font-size: 15px;
+            color: #7f8c8d;
+            margin: 5px 0 15px 0;
+            background: #edf2f7;
+            padding: 10px;
+            border-radius: 8px;
+            display: inline-block;
         }
 
-            .tab-btn.active {
-                background: #3498db;
-                color: white;
-            }
-
-        /* 儲存成功彈窗 */
         #save-toast {
             display: none;
             position: fixed;
@@ -199,16 +190,16 @@
 </head>
 <body>
 
-    <div id="save-toast">✅ 復健紀錄已自動儲存！</div>
+    <div id="save-toast">復健紀錄與肌肉疲勞分析已自動儲存！</div>
 
     <div id="mySidebar" class="sidebar">
         <span style="position:absolute;top:10px;left:20px;font-size:30px;cursor:pointer" onclick="closeNav()">&times;</span>
         <div class="sidebar-content">
             <div style="border-bottom: 2px solid #eee; padding-bottom: 15px; margin-bottom: 15px;">
-                <h3>👤 {{ username }} 您好</h3>
+                <h3>{{ username }} 您好</h3>
             </div>
-            <button onclick="showSection('live')">📹 即時復健偵測</button>
-            <button onclick="showSection('charts')">📈 歷史數據圖表</button>
+            <button onclick="showSection('live')">即時復健偵測</button>
+            <button onclick="showSection('charts')">歷史與疲勞數據</button>
             <a href="/logout" class="logout-btn">登出系統</a>
         </div>
     </div>
@@ -220,14 +211,17 @@
 
     <div class="container">
         <div class="step-bar" id="status-bar">
-            <h2 style="margin: 0;">目前狀態：<span id="live-stage" style="color: #3498db;">{{ stage }}</span> | 本次計數：<span id="live-count" style="color: #e74c3c;">0</span></h2>
+            <h1 style="margin: 0; font-size: 32px;">
+                目前動作：<span id="live-stage" style="color: #3498db; font-weight: bold;">請放鬆</span> |
+                今日累計：<span id="live-count" style="color: #e74c3c; font-weight: bold;">0</span> 次
+            </h1>
         </div>
 
         <div id="live-section" class="video-wrapper">
             <div class="box">
-                <h3>標準示範</h3>
+                <h3>標準示範 (坐姿直抬腿)</h3>
                 <div class="video-container">
-                    <iframe src="https://www.youtube.com/embed/dkzgOJdAo_Y?autoplay=1&mute=1&loop=1&playlist=dkzgOJdAo_Y&controls=0" allowfullscreen></iframe>
+                    <iframe width="560" height="315" src="https://www.youtube.com/embed/XMzItU_1zgA?si=PxdsCLP_Mh1rwVtx" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
                 </div>
             </div>
             <div class="box">
@@ -236,16 +230,19 @@
             </div>
         </div>
 
-        <div id="chart-section" class="video-wrapper" style="display: none;">
-            <div class="box">
-                <h3>📊 復健歷史趨勢分析</h3>
-                <div style="margin-bottom: 15px;">
-                    <button id="btn-total" class="tab-btn active" onclick="updateChart('total')">總數據</button>
-                    <button id="btn-squat" class="tab-btn" onclick="updateChart('squat')">深蹲</button>
-                    <button id="btn-stand" class="tab-btn" onclick="updateChart('sit_to_stand')">座椅起立</button>
-                </div>
-                <div class="chart-container">
+        <div id="chart-section" class="chart-row">
+            <div class="box" style="width: 100%; box-sizing: border-box;">
+                <h3 style="font-size: 20px; color: #2c3e50;">坐姿直抬腿（SLR）歷史復健次數</h3>
+                <div class="chart-container" style="max-width: 600px; margin: 15px auto 0 auto;">
                     <canvas id="myChart"></canvas>
+                </div>
+            </div>
+
+            <div class="box" style="width: 100%; box-sizing: border-box;">
+                <h3 style="font-size: 20px; color: #2c3e50;">當次運動疲勞與動作速度追蹤</h3>
+                <div class="fatigue-hint">曲線向上代表單次維持動作秒數變長（或變短趨緩），可用來追蹤長輩的股四頭肌肌肉耐力表現。</div>
+                <div class="chart-container" style="margin: 15px auto 0 auto;">
+                    <canvas id="fatigueChart"></canvas>
                 </div>
             </div>
         </div>
@@ -253,26 +250,27 @@
 
     <script>
         // 1. 初始化圖表數據
-        const chartData = JSON.parse('{{ chart_data | tojson | safe }}') || {};
-        const dates = Object.keys(chartData).sort();
-        let myChart = null;
+        const timeLabels = JSON.parse('{{ time_labels | tojson | safe }}') || [];
+        const countValues = JSON.parse('{{ count_values | tojson | safe }}') || [];
+        const fatigueRaw = JSON.parse('{{ last_fatigue_data | tojson | safe }}') || [];
 
-        // 2. 即時更新狀態功能
+        let myChart = null;
+        let fatigueChart = null;
+
+        // 2. 即時更新狀態功能 
         function refreshStatus() {
             fetch('/get_status')
                 .then(res => res.json())
                 .then(data => {
-                    document.getElementById('live-stage').innerText = data.stage;
+                    let chineseStage = (data.stage === "UP") ? "抬腿" : "放下";
+                    document.getElementById('live-stage').innerText = chineseStage;
                     document.getElementById('live-count').innerText = data.count;
+                    document.getElementById('live-stage').style.color = (data.stage === "UP") ? "#e67e22" : "#3498db";
 
-                    // 顏色反饋：下蹲變橘色，站立變藍色
-                    document.getElementById('live-stage').style.color = (data.stage === "DOWN") ? "#e67e22" : "#3498db";
-
-                    // 檢查是否觸發儲存通知
+                    // 檢查是否儲存成功
                     if(data.saved === true) {
                         const toast = document.getElementById('save-toast');
                         toast.style.display = 'block';
-                        // 2.5秒後自動消失並重新整理數據
                         setTimeout(() => {
                             toast.style.display = 'none';
                             location.reload();
@@ -282,10 +280,9 @@
                 .catch(e => console.log("等待伺服器連線..."));
         }
 
-        // 每 0.5 秒抓取一次最新狀態
         setInterval(refreshStatus, 500);
 
-        // 3. 切換顯示頁面邏輯
+        // 3. 切換顯示頁面
         function showSection(section) {
             const statusBar = document.getElementById('status-bar');
             const liveSec = document.getElementById('live-section');
@@ -296,57 +293,99 @@
                 liveSec.style.display = 'flex';
                 chartSec.style.display = 'none';
             } else {
-                statusBar.style.display = 'none'; // 切換到圖表時隱藏目前狀態欄
+                statusBar.style.display = 'none';
                 liveSec.style.display = 'none';
-                chartSec.style.display = 'flex';
-                setTimeout(() => { updateChart('total'); }, 100);
+                chartSec.style.display = 'flex'; 
+                setTimeout(() => {
+                    updateCountChart();
+                    updateFatigueChart();
+                }, 150);
             }
             closeNav();
         }
 
-        // 4. 圖表渲染邏輯
-        function updateChart(type) {
+        // 4. 圖表一：次數統計
+        function updateCountChart() {
             const ctx = document.getElementById('myChart').getContext('2d');
-
-            // 更新按鈕樣式
-            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
-            const activeBtnId = (type === 'sit_to_stand') ? 'btn-stand' : 'btn-' + type;
-            const targetBtn = document.getElementById(activeBtnId);
-            if(targetBtn) targetBtn.classList.add('active');
-
             if (myChart) myChart.destroy();
-
-            const dataValues = dates.map(d => {
-                if (type === 'total') return (chartData[d].squat || 0) + (chartData[d].sit_to_stand || 0);
-                return (chartData[d][type] || 0);
-            });
 
             myChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: dates,
+                    labels: timeLabels,
                     datasets: [{
-                        label: '運動次數',
-                        data: dataValues,
+                        label: '當次運動次數',
+                        data: countValues,
                         backgroundColor: '#3498db',
-                        borderRadius: 5
+                        borderRadius: 5,
+                        barThickness: 30
                     }]
                 },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     scales: {
-                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                        y: {
+                            beginAtZero: true,
+                            ticks: { stepSize: 1 },
+                            title: { display: true, text: '次數 (次)', font: { weight: 'bold' } }
+                        },
+                        x: {
+                            title: { display: true, text: '復健時間 (月-日 時:分)', font: { weight: 'bold' } }
+                        }
                     },
                     plugins: {
-                        legend: { display: false }
+                        legend: { display: false } 
                     }
                 }
             });
         }
 
-        function openNav() { document.getElementById("mySidebar").style.width = "300px"; }
-        function closeNav() { document.getElementById("mySidebar").style.width = "0"; }
+        // 5. 圖表二：疲勞度折線圖
+        function updateFatigueChart() {
+            const ctx = document.getElementById('fatigueChart').getContext('2d');
+            if (fatigueChart) fatigueChart.destroy();
+
+            const labels = fatigueRaw.map((_, index) => `第 ${index + 1} 下`);
+
+            fatigueChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '單次動作維持時間 (秒)',
+                        data: fatigueRaw,
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        borderWidth: 3,
+                        tension: 0.3,
+                        fill: true,
+                        pointRadius: 5,
+                        pointBackgroundColor: '#e74c3c'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            title: { display: true, text: '維持秒數 (秒)', font: { size: 13, weight: 'bold' } },
+                            beginAtZero: true
+                        },
+                        x: {
+                            title: { display: true, text: '復健次數序列', font: { size: 13, weight: 'bold' } }
+                        }
+                    }
+                }
+            });
+        }
+
+        function openNav() {
+            document.getElementById("mySidebar").style.width = "300px";
+        }
+        function closeNav() {
+            document.getElementById("mySidebar").style.width = "0";
+        }
     </script>
 </body>
 </html>
