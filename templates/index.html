@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <title>基於勸誘式AI復健遊戲</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.2.0/socket.io.min.js"></script>
+
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
+
     <style>
         body {
             font-family: 'Microsoft JhengHei', sans-serif;
@@ -67,10 +72,10 @@
             transition: 0.3s;
         }
 
-            .sidebar button:hover, .sidebar a:hover {
-                background-color: #f0f2f5;
-                color: #3498db;
-            }
+        .sidebar button:hover, .sidebar a:hover {
+            background-color: #f0f2f5;
+            color: #3498db;
+        }
 
         .container {
             padding: 45px;
@@ -80,7 +85,6 @@
             min-height: calc(100vh - 80px);
         }
 
-        /* 歷史圖表專用橫列樣式 */
         .chart-row {
             display: none;
             flex-direction: column;
@@ -101,28 +105,30 @@
             margin-bottom: 20px;
         }
 
-            .box h3 {
-                margin-top: 0;
-                color: #34495e;
-                border-bottom: 2px solid #f0f2f5;
-                padding-bottom: 10px;
-            }
+        .box h3 {
+            margin-top: 0;
+            color: #34495e;
+            border-bottom: 2px solid #f0f2f5;
+            padding-bottom: 10px;
+        }
+
+        .fatigue-hint {
+            text-align: left;
+            font-size: 14px;
+            color: #7f8c8d;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 6px;
+            border-left: 4px solid #e74c3c;
+            margin: 10px auto 0 auto;
+            max-width: 600px;
+        }
 
         .chart-container {
             position: relative;
             height: 350px;
             width: 100%;
             margin-top: 15px;
-        }
-
-        .fatigue-hint {
-            font-size: 15px;
-            color: #7f8c8d;
-            margin: 5px 0 15px 0;
-            background: #edf2f7;
-            padding: 10px;
-            border-radius: 8px;
-            display: inline-block;
         }
 
         #save-toast {
@@ -160,40 +166,9 @@
             max-width: 1250px;
             box-shadow: 0 8px 24px rgba(0,0,0,0.15);
             box-sizing: border-box;
-            position: relative; 
+            position: relative;
         }
 
-        .photo-btn-container {
-            position: absolute; 
-            top: -55px; 
-            right: 5px;
-            background: transparent; 
-            border: none; 
-            outline: none; 
-            padding: 0;
-            cursor: pointer;
-            width: 45px; 
-            transition: transform 0.2s ease;
-            z-index: 10;
-        }
-
-        .photo-btn-container img {
-            width: 100%;
-            height: auto;
-            display: block;
-            border: none;
-        }
-
-        .photo-btn-container:hover {
-            transform: scale(1.04);
-            box-shadow: 0 6px 18px rgba(0,0,0,0.25);
-        }
-
-        .photo-btn-container:active {
-            transform: scale(0.98);
-        }
-
-        /* 記分板 */
         .scoreboard {
             display: flex;
             justify-content: space-around;
@@ -225,7 +200,6 @@
             font-weight: bold;
             font-size: 24px;
             font-style: italic;
-            box-shadow: 0 0 10px rgba(231, 76, 60, 0.5);
         }
 
         .video-arena {
@@ -256,25 +230,32 @@
 
         .video-wrapper-box {
             width: 100%;
-            aspect-ratio: 4 / 3;
+            height: 380px;
             background: #000000;
-            border-radius: 10px;
+            border-radius: 12px;
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
         }
 
-            .video-wrapper-box img {
-                width: 100%;
-                height: 100%;
-                object-fit: cover;
-            }
+        #p1-processed-view {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+            transform: scaleX(-1);
+        }
 
         .placeholder-text {
-            color: #95a5a6;
-            font-size: 24px;
+            color: #ffffff;
+            font-size: 22px;
             font-weight: bold;
+            position: absolute;
+            z-index: 5;
+            text-align: center;
+            padding: 0 10px;
         }
 
         .player-action-status {
@@ -300,58 +281,73 @@
             background: #95a5a6;
         }
 
-        .video-modal {
-            display: none; 
-            position: fixed;
-            z-index: 9999; 
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.7); 
-        }
-
-        .modal-content {
-            background-color: #fff;
-            margin: 5% auto;
+        .connect-panel {
+            width: 95%;
+            max-width: 500px;
+            margin: 25px auto 0 auto;
+            background: #ffffff;
             padding: 25px;
-            width: 70%;
-            max-width: 800px;
             border-radius: 15px;
+            box-sizing: border-box;
             text-align: center;
-            position: relative;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
         }
 
-        .close-btn {
-            position: absolute;
-            right: 20px;
-            top: 10px;
-            font-size: 40px;
+        .elder-row-buttons {
+            display: flex;
+            gap: 15px;
+            width: 100%;
+        }
+
+        .btn-elder-choice {
+            flex: 1;
+            font-size: 24px;
+            padding: 18px 10px;
+            font-weight: bold;
+            color: white;
+            border: none;
+            border-radius: 12px;
             cursor: pointer;
-            color: #aaa;
         }
 
-            .close-btn:hover {
-                color: #e74c3c;
-            }
+        .btn-blue {
+            background-color: #3498db;
+        }
 
-        .modal-video-container {
-            position: relative;
-            padding-bottom: 56.25%;
-            height: 0;
-            overflow: hidden;
-            border-radius: 8px;
+        .btn-green {
+            background-color: #2ecc71;
+        }
+
+        #host-display-area, #guest-keyboard-area {
+            display: none;
+            margin-top: 25px;
+            padding-top: 20px;
+            border-top: 3px dashed #cbd5e1;
+        }
+
+        .elder-keyboard {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
             margin-top: 15px;
         }
 
-        .modal-video-container iframe {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
+        .btn-num {
+            font-size: 32px;
+            font-weight: bold;
+            height: 65px;
+            background-color: #edf2f7;
+            border: 2px solid #cbd5e1;
+            border-radius: 10px;
+            color: #2d3748;
+            cursor: pointer;
         }
+
+        .btn-clear {
+            background-color: #fed7d7;
+            border-color: #fca5a5;
+            color: #c53030;
+            font-size: 22px;
+        } 
     </style>
 </head>
 <body>
@@ -374,11 +370,9 @@
         <span>基於勸誘式AI復健遊戲</span>
         <button class="menu-btn" onclick="openNav()">☰ 選單</button>
     </div>
+
     <div class="container">
         <div id="live-section">
-            <button class="photo-btn-container" onclick="openVideoModal()" title="點擊觀看標準動作說明">
-                <img src="{{ url_for('static', filename='icon1.png') }}" alt="復健動作說明">
-            </button>
             <div class="scoreboard">
                 <div class="player-score score-red">對手: <span id="p2-score">0</span> 次</div>
                 <div class="vs-badge">VS</div>
@@ -386,11 +380,13 @@
             </div>
 
             <div class="video-arena">
-
                 <div class="player-box">
-                    <div class="player-tag"><span class="status-dot offline" id="p2-dot"></span>對手玩家</div>
+                    <div class="player-tag">
+                        <span class="status-dot offline" id="p2-dot"></span>對手玩家
+                    </div>
                     <div class="video-wrapper-box">
-                        <div class="placeholder-text" id="p2-placeholder">等待對手加入中...</div>
+                        <div class="placeholder-text" id="p2-placeholder">⏳ 等待對手加入中...</div>
+                        <video id="p2-video" autoplay playsinline style="width:100%; height:100%; object-fit:cover; display:none; transform:scaleX(-1)"></video>
                     </div>
                     <div class="player-action-status">對手狀態：<span id="p2-stage" style="color:#7f8c8d;">OFFLINE</span></div>
                 </div>
@@ -398,122 +394,112 @@
                 <div class="player-box">
                     <div class="player-tag"><span class="status-dot online"></span>{{ username }}</div>
                     <div class="video-wrapper-box">
-                        <img src="{{ url_for('mjpeg') }}" alt="您的即時偵測畫面">
+                        <div class="placeholder-text" id="p1-placeholder">⏳ 正在啟動攝影機...</div>
+                        <canvas id="p1-processed-view" style="width:100%; height:100%; object-fit:cover; display:block; transform:scaleX(-1);"></canvas>
+                        <video id="p1-local-video" autoplay playsinline muted style="display: none;"></video>
                     </div>
                     <div class="player-action-status">您的狀態：<span id="p1-stage" style="color:#3498db;">放下</span></div>
                 </div>
+            </div>
 
+            <div class="connect-panel">
+                <div class="elder-row-buttons" id="initial-choice-area">
+                    <button class="btn-elder-choice btn-blue" onclick="clickCreateMode()">我要<br>創建房間</button>
+                    <button class="btn-elder-choice btn-green" onclick="clickJoinMode()">我要<br>加入房間</button>
+                </div>
+
+                <div id="host-display-area">
+                    <div style="font-size: 22px; font-weight: bold; color: #475569;">
+                        您的對戰房間號碼為：<br>
+                        <span id="displayRoomNumber" style="font-size: 55px; color: #e74c3c; letter-spacing: 5px; background: #f8fafc; padding: 5px 25px; border: 2px solid #cbd5e1; border-radius: 10px; display: inline-block; margin-top: 10px;">---</span>
+                    </div>
+                    <p style="font-size: 18px; color: #7f8c8d; margin-top: 10px;">請將上方號碼告訴您的對手喔！</p>
+                </div>
+
+                <div id="guest-keyboard-area">
+                    <h4 style="font-size: 24px; color: #2c3e50; margin: 0 0 15px 0;">請輸入對手畫面上的號碼</h4>
+                    <input type="text" id="roomName" readonly placeholder="請點下方數字輸入" style="font-size: 32px; width: 100%; text-align:center; border:2px solid #cbd5e1; border-radius:8px; padding:5px;">
+
+                    <div class="elder-keyboard">
+                        <button class="btn-num" onclick="pressNum('1')">1</button>
+                        <button class="btn-num" onclick="pressNum('2')">2</button>
+                        <button class="btn-num" onclick="pressNum('3')">3</button>
+                        <button class="btn-num" onclick="pressNum('4')">4</button>
+                        <button class="btn-num" onclick="pressNum('5')">5</button>
+                        <button class="btn-num" onclick="pressNum('6')">6</button>
+                        <button class="btn-num" onclick="pressNum('7')">7</button>
+                        <button class="btn-num" onclick="pressNum('8')">8</button>
+                        <button class="btn-num" onclick="pressNum('9')">9</button>
+                        <button class="btn-num btn-clear" onclick="clearNum()">清除</button>
+                        <button class="btn-num" onclick="pressNum('0')">0</button>
+                    </div>
+                </div>
             </div>
         </div>
 
-        <div id="chart-section" class="chart-row">
+        <div id="charts-section" class="chart-row">
             <div class="box" style="width: 100%; box-sizing: border-box;">
                 <h3 style="font-size: 20px; color: #2c3e50;">坐姿直抬腿（SLR）歷史復健次數</h3>
                 <div class="chart-container" style="max-width: 600px; margin: 15px auto 0 auto;">
-                    <canvas id="myChart"></canvas>
+                    <canvas id="myChart"
+                            data-labels='{{ time_labels|tojson if time_labels else "[]" }}'
+                            data-counts='{{ count_values|tojson if count_values else "[]" }}'></canvas>
                 </div>
             </div>
-
             <div class="box" style="width: 100%; box-sizing: border-box;">
                 <h3 style="font-size: 20px; color: #2c3e50;">當次運動疲勞與動作速度追蹤</h3>
                 <div class="fatigue-hint">曲線向上代表單次維持動作秒數變長（或變短趨緩），可用來追蹤長輩的股四頭肌肌肉耐力表現。</div>
                 <div class="chart-container" style="margin: 15px auto 0 auto;">
-                    <canvas id="fatigueChart"></canvas>
+                    <canvas id="fatigueChart"
+                            data-fatigue='{{ duration_values|tojson if duration_values else "[]" }}'></canvas>
                 </div>
             </div>
         </div>
     </div>
 
-    <div id="videoModal" class="video-modal">
-        <div class="modal-content">
-            <span class="close-btn" onclick="closeVideoModal()">&times;</span>
-            <h2 style="margin-top: 0; color: #2c3e50; font-size: 24px;">坐姿直抬腿 標準動作示範</h2>
-            <div class="modal-video-container">
-                <iframe src="https://www.youtube.com/embed/XMzItU_1zgA" title="復健示範影片" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
-            </div>
-            <p style="font-size: 18px; color: #7f8c8d; margin-top: 15px; font-weight: bold;">
-                提示：請坐在椅子上，將腳平緩抬高伸直並維持姿勢，放下時動作要慢喔！
-            </p>
-        </div>
-    </div>
-
     <script>
-        // 1. 初始化圖表數據
-        const timeLabels = JSON.parse('{{ time_labels | tojson | safe }}') || [];
-        const countValues = JSON.parse('{{ count_values | tojson | safe }}') || [];
-        const fatigueRaw = JSON.parse('{{ last_fatigue_data | tojson | safe }}') || [];
+        const socket = io();
+        let currentRoom = null;
+        let localStream = null;
+        let peerConnection = null;
+        let isHost = false; 
 
-        let myChart = null;
-        let fatigueChart = null;
+        const rtcConfig = {
+            iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+        };
 
-        // 2. 即時更新狀態功能
-        function refreshStatus() {
-            fetch('/get_status')
-                .then(res => res.json())
-                .then(data => {
-                    let chineseStage = (data.stage === "UP") ? "抬腿" : "放下";
+        // 側邊欄開關控制
+        function openNav() { document.getElementById("mySidebar").style.width = "280px"; }
+        function closeNav() { document.getElementById("mySidebar").style.width = "0"; }
 
-                    document.getElementById('p1-score').innerText = data.count;
-                    document.getElementById('p1-stage').innerText = chineseStage;
-                    document.getElementById('p1-stage').style.color = (data.stage === "UP") ? "#e67e22" : "#3498db";
-
-                    // 檢查是否儲存成功
-                    if(data.saved === true) {
-                        const toast = document.getElementById('save-toast');
-                        toast.style.display = 'block';
-                        setTimeout(() => {
-                            toast.style.display = 'none';
-                            location.reload();
-                        }, 2500);
-                    }
-                })
-                .catch(e => console.log("等待伺服器連線..."));
-        }
-
-        setInterval(refreshStatus, 500);
-
-        // 3. 切換顯示頁面
         function showSection(section) {
-            const liveSec = document.getElementById('live-section');
-            const chartSec = document.getElementById('chart-section');
-
             if (section === 'live') {
-                liveSec.style.display = 'block';
-                chartSec.style.display = 'none';
+                document.getElementById('live-section').style.display = 'block';
+                document.getElementById('charts-section').style.display = 'none';
             } else {
-                liveSec.style.display = 'none';
-                chartSec.style.display = 'flex';
-                setTimeout(() => {
-                    updateCountChart();
-                    updateFatigueChart();
-                }, 150);
+                document.getElementById('live-section').style.display = 'none';
+                document.getElementById('charts-section').style.display = 'flex';
+                initCharts();
             }
             closeNav();
         }
 
-        // 4. 浮動遮罩視窗控制邏輯
-        function openVideoModal() {
-            document.getElementById('videoModal').style.display = 'block';
-        }
+        //歷史圖表渲染
+        let myChart = null;
+        let fatigueChart = null;
 
-        function closeVideoModal() {
-            document.getElementById('videoModal').style.display = 'none';
-        }
-
-        // 當點擊視窗外的黑色半透明遮罩區域時，也自動關閉彈窗
-        window.onclick = function (event) {
-            const modal = document.getElementById('videoModal');
-            if (event.target === modal) {
-                modal.style.display = 'none';
-            }
-        }
-
-        // 次數統計圖表
-        function updateCountChart() {
-            const ctx = document.getElementById('myChart').getContext('2d');
+        function initCharts() {
+            // 1. 次數統計長條圖
+            const countCanvas = document.getElementById('myChart');
+            const ctxCount = countCanvas.getContext('2d');
             if (myChart) myChart.destroy();
 
-            myChart = new Chart(ctx, {
+            let timeLabels = [];
+            let countValues = [];
+            try { timeLabels = JSON.parse(countCanvas.dataset.labels || '[]'); } catch (e) { timeLabels = []; }
+            try { countValues = JSON.parse(countCanvas.dataset.counts || '[]'); } catch (e) { countValues = []; }
+
+            myChart = new Chart(ctxCount, {
                 type: 'bar',
                 data: {
                     labels: timeLabels,
@@ -531,7 +517,9 @@
                     scales: {
                         y: {
                             beginAtZero: true,
-                            ticks: { stepSize: 1 },
+                            suggestedMax: 30,
+                            max: 30,
+                            ticks: { stepSize: 5 },
                             title: { display: true, text: '次數 (次)', font: { weight: 'bold' } }
                         },
                         x: {
@@ -543,19 +531,38 @@
                     }
                 }
             });
-        }
 
-        // 疲勞度折線圖
-        function updateFatigueChart() {
-            const ctx = document.getElementById('fatigueChart').getContext('2d');
-            if (fatigueChart) fatigueChart.destroy();
+            // 2. 疲勞度折線圖
+            const fatigueCanvas = document.getElementById('fatigueChart');
+            if (!fatigueCanvas)
+                return;
+            const ctxFatigue = fatigueCanvas.getContext('2d');
+            if (typeof fatigueChart !== 'undefined' && fatigueChart) {
+                fatigueChart.destroy();
+            }
 
-            const labels = fatigueRaw.map((_, index) => `第 ${index + 1} 下`);
+            let fatigueRaw = [];
+            try {
+                let rawData = fatigueCanvas.getAttribute('data-fatigue');
+                if (rawData && rawData.trim() !== "") {
+                    fatigueRaw = JSON.parse(rawData);
+                }
+            } catch (e) {
+                console.error("【圖表錯誤】疲勞數據 JSON 解析失敗，使用空陣列", e);
+                fatigueRaw = [];
+            }
+            if (typeof localDurations !== 'undefined' && localDurations && localDurations.length > 0) {
+                fatigueRaw = localDurations;
+            }
+            if (!Array.isArray(fatigueRaw)) {
+                fatigueRaw = [];
+            }
+            const fatigueLabels = fatigueRaw.map((_, index) => `第 ${index + 1} 下`);
 
-            fatigueChart = new Chart(ctx, {
+            window.fatigueChart = new Chart(ctxFatigue, {
                 type: 'line',
                 data: {
-                    labels: labels,
+                    labels: fatigueLabels,
                     datasets: [{
                         label: '單次動作維持時間 (秒)',
                         data: fatigueRaw,
@@ -584,12 +591,338 @@
             });
         }
 
-        function openNav() {
-            document.getElementById("mySidebar").style.width = "300px";
+        // 創建對戰房間
+        function clickCreateMode() {
+            document.getElementById('initial-choice-area').style.display = 'none';
+            document.getElementById('host-display-area').style.display = 'block';
+
+            // 隨機生成3位數房間密碼
+            const generatedRoom = Math.floor(100 + Math.random() * 900).toString();
+            document.getElementById('displayRoomNumber').innerText = generatedRoom;
+            currentRoom = generatedRoom;
+            isHost = true;
+            socket.emit('create_room', { room: currentRoom });
         }
-        function closeNav() {
-            document.getElementById("mySidebar").style.width = "0";
+
+        // 展開輸入面板
+        function clickJoinMode() {
+            document.getElementById('initial-choice-area').style.display = 'none';
+            document.getElementById('guest-keyboard-area').style.display = 'block';
+            isHost = false;
         }
+
+        function pressNum(num) {
+            const input = document.getElementById('roomName');
+            if (input.value.length < 3) {
+                input.value += num;
+                if (input.value.length === 3) {
+                    currentRoom = input.value;
+                    socket.emit('join_room', { room: currentRoom });
+                }
+            }
+        }
+        function clearNum() {
+            document.getElementById('roomName').value = '';
+        }
+
+        socket.on('opponent_joined', async () => {
+            updateOpponentUI(true);
+
+            if (!localStream) {
+                await waitForLocalStream();
+            }
+
+            initPeerConnection();
+
+            try {
+                const offer = await peerConnection.createOffer();
+                await peerConnection.setLocalDescription(offer);
+                socket.emit('signal', { room: currentRoom, type: 'offer', sdp: offer });
+            } catch (e) {
+                console.error(e);
+            }
+        });
+
+        // 接收 WebRTC 信令
+        socket.on('signal', async (data) => {
+            if (!peerConnection) initPeerConnection();
+
+            if (data.type === 'offer') {
+                updateOpponentUI(true);
+
+                if (!localStream) {
+                    await waitForLocalStream();
+                }
+
+                try {
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                    const answer = await peerConnection.createAnswer();
+                    await peerConnection.setLocalDescription(answer);
+                    socket.emit('signal', { room: currentRoom, type: 'answer', sdp: answer });
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+            else if (data.type === 'answer') {
+                try {
+                    await peerConnection.setRemoteDescription(new RTCSessionDescription(data.sdp));
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+            else if (data.type === 'candidate') {
+                try {
+                    if (data.candidate) {
+                        await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        });
+
+        // 初始化 WebRTC 物件與事件綁定
+        function initPeerConnection() {
+            if (peerConnection) return;
+            peerConnection = new RTCPeerConnection(rtcConfig);
+
+            // 將本地攝影機/麥克風軌道塞入 P2P 通道
+            if (localStream) {
+                localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            } 
+
+            // 當本機找到網路節點路徑時，透過信令伺服器告知對方
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit('signal', { room: currentRoom, type: 'candidate', candidate: event.candidate });
+                }
+            };
+
+            // 收到對手的視訊串流
+            peerConnection.ontrack = (event) => {
+                const p2Video = document.getElementById('p2-video');
+                const placeholder = document.getElementById('p2-placeholder');
+
+                p2Video.srcObject = event.streams[0];
+                placeholder.style.display = 'none';
+                p2Video.style.display = 'block';
+            };
+
+            // 監聽 ICE 連線狀態（除錯用）
+            peerConnection.oniceconnectionstatechange = () => {
+                if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
+                    handleOpponentLeave();
+                }
+            };
+        }
+
+        // 更新記分板與對手上下狀態
+        socket.on('update_opponent_view', (data) => {
+            if (data.score !== undefined) document.getElementById('p2-score').innerText = data.score;
+            if (data.stage !== undefined) {
+                const p2Stage = document.getElementById('p2-stage');
+                p2Stage.innerText = data.stage === "UP" ? "抬腿" : "放下";
+                p2Stage.style.color = data.stage === "UP" ? "#e67e22" : "#3498db";
+            }
+        });
+
+        // 對手離線通知
+        socket.on('opponent_left', () => {
+            handleOpponentLeave();
+        });
+
+        function updateOpponentUI(isOnline) {
+            const dot = document.getElementById('p2-dot');
+            if (isOnline) {
+                dot.classList.remove('offline');
+                dot.classList.add('online');
+            } else {
+                dot.classList.remove('online');
+                dot.classList.add('offline');
+            }
+        }
+
+        function handleOpponentLeave() {
+            updateOpponentUI(false);
+            document.getElementById('p2-stage').innerText = "OFFLINE";
+            document.getElementById('p2-stage').style.color = "#7f8c8d";
+            document.getElementById('p2-video').style.display = 'none';
+            document.getElementById('p2-placeholder').style.display = 'block';
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+        }
+
+        let localCounter = 0;
+        let localStage = "DOWN";
+        let actionStartTime = null;
+        let localDurations = [];
+        let lastSeenTime = Date.now();
+        let isSaving = false;
+
+        // 計算骨骼點角度
+        function calculateAngle(p1, p2, p3) {
+            let radians = Math.atan2(p3.y - p2.y, p3.x - p2.x) - Math.atan2(p1.y - p2.y, p1.x - p2.x);
+            let angle = Math.abs((radians * 180.0) / Math.PI);
+            if (angle > 180.0) angle = 360 - angle;
+            return angle;
+        }
+
+        function startFrontendDetection(videoElement) {
+            const canvasElement = document.getElementById('p1-processed-view');
+            const canvasCtx = canvasElement.getContext('2d');
+
+            const pose = new Pose({
+                locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`
+            });
+
+            pose.setOptions({
+                modelComplexity: 1,
+                smoothLandmarks: true,
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
+            });
+
+            pose.onResults((results) => {
+                const placeholder = document.getElementById('p1-placeholder');
+                if (placeholder && placeholder.style.display !== 'none') {
+                    placeholder.style.display = 'none';
+                }
+                if (canvasElement.width !== videoElement.videoWidth) {
+                    canvasElement.width = videoElement.videoWidth;
+                    canvasElement.height = videoElement.videoHeight;
+                }
+
+                canvasCtx.save();
+                canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+                canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+
+                if (results.poseLandmarks) {
+                    lastSeenTime = Date.now();
+
+                    const hip = results.poseLandmarks[24];
+                    const knee = results.poseLandmarks[26];
+                    const ankle = results.poseLandmarks[28];
+
+                    if (hip && knee && ankle) {
+                        let angle = calculateAngle(hip, knee, ankle);
+
+                        //直抬腿動作判定邏輯
+                        if (angle > 160 && localStage === "DOWN") {
+                            localStage = "UP";
+                            actionStartTime = Date.now();
+                            document.getElementById('p1-stage').innerText = "抬腿";
+                            document.getElementById('p1-stage').style.color = "#e67e22";
+                            //將房間對戰狀態同步給對手
+                            if (currentRoom) {
+                                socket.emit('update_view', { room: currentRoom, stage: localStage });
+                            }
+                        }
+                        else if (angle < 130 && localStage === "UP") {
+                            const now = Date.now();
+                            if (actionStartTime !== null && (now - actionStartTime) > 1000) {
+                                localStage = "DOWN";
+                                localCounter += 1; 
+
+                                document.getElementById('p1-score').innerText = localCounter;
+                                document.getElementById('p1-stage').innerText = "放下";
+                                document.getElementById('p1-stage').style.color = "#3498db";
+
+                                // 計算這一下維持了幾秒（除以 1000 轉換為秒，四捨五入到小數點後兩位）
+                                let holdDuration = Math.round((now - actionStartTime) / 1000 * 100) / 100;
+                                localDurations.push(holdDuration);
+
+                                //透過WebSocket將最新次數與狀態同步給房間內對手
+                                if (currentRoom) {
+                                    socket.emit('sync_score_status', {
+                                        room: currentRoom,
+                                        score: localCounter,
+                                        stage: localStage
+                                    });
+                                }
+                            }
+                            // 如果沒撐滿 1 秒就放下了，視為無效震盪，直接重置狀態不加分
+                            else if (actionStartTime !== null) {
+                                localStage = "DOWN";
+                                document.getElementById('p1-stage').innerText = "放下";
+                                document.getElementById('p1-stage').style.color = "#3498db";
+                                if (currentRoom) {
+                                    socket.emit('sync_score_status', { room: currentRoom, stage: localStage });
+                                }
+                            }
+                        }
+                    }
+                }
+                canvasCtx.restore();
+
+                //自動存檔檢測
+                if (localCounter > 0 && (Date.now() - lastSeenTime > 3000) && !isSaving) {
+                    isSaving = true;
+
+                    const toast = document.getElementById('save-toast');
+                    toast.style.display = 'block';
+
+                    socket.emit('save_rehab_record', {
+                        count: localCounter,
+                        durations: localDurations
+                    });
+                }
+            });
+
+            const camera = new Camera(videoElement, {
+                onFrame: async () => {
+                    await pose.send({ image: videoElement });
+                },
+                width: 640,
+                height: 480
+            });
+            camera.start();
+        }
+
+        // 後端回傳存檔成功
+        socket.on('response_save_success', function (data) {
+            if (data.saved === true) {
+                localCounter = 0;
+                localDurations = [];
+                setTimeout(() => {
+                    const toast = document.getElementById('save-toast');
+                    if (toast) toast.style.display = 'none';
+                    isSaving = false;
+                    location.reload(); 
+                }, 2000);
+            }
+        });
+
+        function waitForLocalStream(timeout = 5000) {
+            return new Promise((resolve) => {
+                const start = Date.now();
+                const check = () => {
+                    if (localStream || Date.now() - start > timeout) {
+                        resolve();
+                    } else {
+                        setTimeout(check, 200);
+                    }
+                };
+                check();
+            });
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const localVideo = document.getElementById('p1-local-video');
+
+            navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                .then((stream) => {
+                    localStream = stream;
+                    localVideo.srcObject = stream;
+                    localVideo.onloadedmetadata = () => {
+                        startFrontendDetection(localVideo);
+                    };
+                })
+                .catch((err) => {
+                    console.error("相機或麥克風存取遭拒", err);
+                });
+        });
     </script>
 </body>
 </html>
