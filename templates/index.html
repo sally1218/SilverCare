@@ -72,10 +72,10 @@
             transition: 0.3s;
         }
 
-        .sidebar button:hover, .sidebar a:hover {
-            background-color: #f0f2f5;
-            color: #3498db;
-        }
+            .sidebar button:hover, .sidebar a:hover {
+                background-color: #f0f2f5;
+                color: #3498db;
+            }
 
         .container {
             padding: 45px;
@@ -105,12 +105,12 @@
             margin-bottom: 20px;
         }
 
-        .box h3 {
-            margin-top: 0;
-            color: #34495e;
-            border-bottom: 2px solid #f0f2f5;
-            padding-bottom: 10px;
-        }
+            .box h3 {
+                margin-top: 0;
+                color: #34495e;
+                border-bottom: 2px solid #f0f2f5;
+                padding-bottom: 10px;
+            }
 
         .fatigue-hint {
             text-align: left;
@@ -170,6 +170,7 @@
         }
 
         .scoreboard {
+            position: relative;
             display: flex;
             justify-content: space-around;
             align-items: center;
@@ -179,6 +180,37 @@
             border-radius: 12px;
             margin-bottom: 25px;
         }
+
+        .photo-btn-container {
+            position: absolute;
+            top: 10px;
+            transform: translateY(-50%);
+            right: 12px;
+            background: #ffffff;
+            border-radius: 50%;
+            border: none;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+            z-index: 10;
+            transition: all 0.2s ease;
+            padding: 0;
+        }
+
+            .photo-btn-container img {
+                width: 16px;
+                height: 16px;
+                display: block;
+            }
+
+                .photo-btn-container img:hover {
+                    transform: scale(1.1);
+                    background-color: #f0f2f5;
+                }
 
         .player-score {
             font-size: 32px;
@@ -347,7 +379,59 @@
             border-color: #fca5a5;
             color: #c53030;
             font-size: 22px;
-        } 
+        }
+        .video-modal {
+            display: none;
+            position: fixed;
+            z-index: 9999;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.7);
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 5% auto;
+            padding: 25px;
+            width: 70%;
+            max-width: 800px;
+            border-radius: 15px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+
+        .close-btn {
+            position: absolute;
+            right: 20px;
+            top: 10px;
+            font-size: 40px;
+            cursor: pointer;
+            color: #aaa;
+        }
+
+            .close-btn:hover {
+                color: #e74c3c;
+            }
+
+        .modal-video-container {
+            position: relative;
+            padding-bottom: 56.25%;
+            height: 0;
+            overflow: hidden;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+            .modal-video-container iframe {
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+            }
     </style>
 </head>
 <body>
@@ -373,6 +457,9 @@
 
     <div class="container">
         <div id="live-section">
+            <button class="photo-btn-container" onclick="openVideoModal()" title="點擊觀看標準動作說明">
+                <img src="{{ url_for('static', filename='icon1.png') }}" alt="復健動作說明">
+            </button>
             <div class="scoreboard">
                 <div class="player-score score-red">對手: <span id="p2-score">0</span> 次</div>
                 <div class="vs-badge">VS</div>
@@ -456,13 +543,24 @@
             </div>
         </div>
     </div>
-
+    <div id="videoModal" class="video-modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeVideoModal()">&times;</span>
+            <h2 style="margin-top: 0; color: #2c3e50; font-size: 24px;">坐姿直抬腿 標準動作示範</h2>
+            <div class="modal-video-container">
+                <iframe src="https://www.youtube.com/embed/XMzItU_1zgA" title="復健示範影片" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+            </div>
+            <p style="font-size: 18px; color: #7f8c8d; margin-top: 15px; font-weight: bold;">
+                提示：請坐在椅子上，將腳平緩抬高伸直並維持姿勢，放下時動作要慢喔！
+            </p>
+        </div>
+    </div>
     <script>
         const socket = io();
         let currentRoom = null;
         let localStream = null;
         let peerConnection = null;
-        let isHost = false; 
+        let isHost = false;
 
         const rtcConfig = {
             iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
@@ -482,6 +580,23 @@
                 initCharts();
             }
             closeNav();
+        }
+
+        // 4. 浮動遮罩視窗控制邏輯
+        function openVideoModal() {
+            document.getElementById('videoModal').style.display = 'block';
+        }
+
+        function closeVideoModal() {
+            document.getElementById('videoModal').style.display = 'none';
+        }
+
+        // 當點擊視窗外的黑色半透明遮罩區域時，也自動關閉彈窗
+        window.onclick = function (event) {
+            const modal = document.getElementById('videoModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
         }
 
         //歷史圖表渲染
@@ -689,7 +804,7 @@
             // 將本地攝影機/麥克風軌道塞入 P2P 通道
             if (localStream) {
                 localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
-            } 
+            }
 
             // 當本機找到網路節點路徑時，透過信令伺服器告知對方
             peerConnection.onicecandidate = (event) => {
@@ -823,7 +938,7 @@
                             const now = Date.now();
                             if (actionStartTime !== null && (now - actionStartTime) > 1000) {
                                 localStage = "DOWN";
-                                localCounter += 1; 
+                                localCounter += 1;
 
                                 document.getElementById('p1-score').innerText = localCounter;
                                 document.getElementById('p1-stage').innerText = "放下";
@@ -889,7 +1004,7 @@
                     const toast = document.getElementById('save-toast');
                     if (toast) toast.style.display = 'none';
                     isSaving = false;
-                    location.reload(); 
+                    location.reload();
                 }, 2000);
             }
         });
