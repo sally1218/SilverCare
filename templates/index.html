@@ -931,7 +931,7 @@
                             document.getElementById('p1-stage').style.color = "#e67e22";
                             //將房間對戰狀態同步給對手
                             if (currentRoom) {
-                                socket.emit('update_view', { room: currentRoom, stage: localStage });
+                                socket.emit('sync_score_status', { room: currentRoom, stage: localStage });
                             }
                         }
                         else if (angle < 130 && localStage === "UP") {
