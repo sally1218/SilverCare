@@ -889,8 +889,6 @@
         let isSaving = false;
         let lockedSide = null;
         let lowVisibilityCount = 0;
-        const VISIBILITY_THRESHOLD = 0.6;
-        const SWITCH_THRESHOLD_FRAMES = 30; // 約1秒左右，依實際fps微調
 
         // 計算骨骼點角度
         function calculateAngle(p1, p2, p3) {
@@ -920,9 +918,10 @@
 
             const currentVis = lockedSide === 'left' ? leftVis : rightVis;
 
-            if (currentVis < VISIBILITY_THRESHOLD) {
+            // 使用內嵌數值避免宣告缺失，並維持較寬鬆的可見度門檻與快速切換
+            if (currentVis < 0.4) {
                 lowVisibilityCount++;
-                if (lowVisibilityCount > SWITCH_THRESHOLD_FRAMES) {
+                if (lowVisibilityCount > 10) {
                     lockedSide = leftVis > rightVis ? 'left' : 'right';
                     lowVisibilityCount = 0;
                 }
@@ -948,8 +947,8 @@
             pose.setOptions({
                 modelComplexity: 1,
                 smoothLandmarks: true,
-                minDetectionConfidence: 0.7,
-                minTrackingConfidence: 0.7
+                minDetectionConfidence: 0.5,
+                minTrackingConfidence: 0.5
             });
 
             pose.onResults((results) => {
