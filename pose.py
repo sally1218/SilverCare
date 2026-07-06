@@ -17,10 +17,12 @@ sid_to_user = {}   # { socket_id: username }
 def init_db():
     conn = sqlite3.connect('rehab.db')
     cursor = conn.cursor()
+    #建立使用者資料表
     cursor.execute('''CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT UNIQUE,
         password TEXT)''')
+    #建立復健紀錄表
     cursor.execute('''CREATE TABLE IF NOT EXISTS records (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         username TEXT,

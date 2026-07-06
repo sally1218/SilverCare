@@ -887,6 +887,10 @@
         let localDurations = [];
         let lastSeenTime = Date.now();
         let isSaving = false;
+        let lockedSide = null;
+        let lowVisibilityCount = 0;
+        const VISIBILITY_THRESHOLD = 0.6;
+        const SWITCH_THRESHOLD_FRAMES = 30; // 約1秒左右，依實際fps微調
 
         // 計算骨骼點角度
         function calculateAngle(p1, p2, p3) {
@@ -894,6 +898,43 @@
             let angle = Math.abs((radians * 180.0) / Math.PI);
             if (angle > 180.0) angle = 360 - angle;
             return angle;
+        }
+        //挑選要用左腳還是右腳
+        function pickLegLandmarks(poseLandmarks) {
+            const leftHip = poseLandmarks[23];
+            const leftKnee = poseLandmarks[25];
+            const leftAnkle = poseLandmarks[27];
+            const rightHip = poseLandmarks[24];
+            const rightKnee = poseLandmarks[26];
+            const rightAnkle = poseLandmarks[28];
+
+            const leftVis = (leftHip && leftKnee && leftAnkle)
+                ? (leftHip.visibility + leftKnee.visibility + leftAnkle.visibility) / 3 : 0;
+            const rightVis = (rightHip && rightKnee && rightAnkle)
+                ? (rightHip.visibility + rightKnee.visibility + rightAnkle.visibility) / 3 : 0;
+
+            // 第一次判斷，還沒鎖定過
+            if (lockedSide === null) {
+                lockedSide = leftVis > rightVis ? 'left' : 'right';
+            }
+
+            const currentVis = lockedSide === 'left' ? leftVis : rightVis;
+
+            if (currentVis < VISIBILITY_THRESHOLD) {
+                lowVisibilityCount++;
+                if (lowVisibilityCount > SWITCH_THRESHOLD_FRAMES) {
+                    lockedSide = leftVis > rightVis ? 'left' : 'right';
+                    lowVisibilityCount = 0;
+                }
+            } else {
+                lowVisibilityCount = 0;
+            }
+
+            if (lockedSide === 'left') {
+                return { hip: leftHip, knee: leftKnee, ankle: leftAnkle, visibility: leftVis };
+            } else {
+                return { hip: rightHip, knee: rightKnee, ankle: rightAnkle, visibility: rightVis };
+            }
         }
 
         function startFrontendDetection(videoElement) {
@@ -907,8 +948,8 @@
             pose.setOptions({
                 modelComplexity: 1,
                 smoothLandmarks: true,
-                minDetectionConfidence: 0.5,
-                minTrackingConfidence: 0.5
+                minDetectionConfidence: 0.7,
+                minTrackingConfidence: 0.7
             });
 
             pose.onResults((results) => {
@@ -927,12 +968,8 @@
 
                 if (results.poseLandmarks) {
                     lastSeenTime = Date.now();
-
-                    const hip = results.poseLandmarks[24];
-                    const knee = results.poseLandmarks[26];
-                    const ankle = results.poseLandmarks[28];
-
-                    if (hip && knee && ankle) {
+                    const { hip, knee, ankle, visibility } = pickLegLandmarks(results.poseLandmarks);
+                    if (hip && knee && ankle && visibility > VISIBILITY_THRESHOLD) {
                         let angle = calculateAngle(hip, knee, ankle);
 
                         //直抬腿動作判定邏輯

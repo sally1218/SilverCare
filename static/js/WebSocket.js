@@ -135,8 +135,6 @@ function initLocalCamera() {
             video.srcObject = stream;
             video.play();
             console.log("本地端硬體鏡頭啟動成功！");
-
-            // 🚀 核心：通知 index.html 開始前端 MediaPipe 循環辨識
             if (typeof startFrontendDetection === "function") {
                 startFrontendDetection(video);
             }
