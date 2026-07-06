@@ -153,7 +153,10 @@ def register():
         conn.close()
         flash("註冊成功！現在您可以點擊下方返回登入了。", "success")
         return redirect(url_for('register_page'))
-    except sqlite3.IntegrityError:
+    except Exception as e:
+        if not isinstance(conn, sqlite3.Connection):
+            conn.rollback()
+        conn.close()
         flash("這個帳號已經有人用了，換一個試試看？", "danger")
         return redirect(url_for('register_page'))
 
