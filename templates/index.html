@@ -969,69 +969,75 @@
                 if (results.poseLandmarks) {
                     lastSeenTime = Date.now();
                     const { hip, knee, ankle, visibility } = pickLegLandmarks(results.poseLandmarks);
-                    if (hip && knee && ankle && visibility > VISIBILITY_THRESHOLD) {
-                        let angle = calculateAngle(hip, knee, ankle);
+                    const isLegFullyVisible =
+                        hip && knee && ankle &&
+                        hip.visibility > VISIBILITY_THRESHOLD &&
+                        knee.visibility > VISIBILITY_THRESHOLD &&
+                        ankle.visibility > VISIBILITY_THRESHOLD;
 
-                        //直抬腿動作判定邏輯
-                        if (angle > 160 && localStage === "DOWN") {
-                            localStage = "UP";
-                            actionStartTime = Date.now();
-                            document.getElementById('p1-stage').innerText = "抬腿";
-                            document.getElementById('p1-stage').style.color = "#e67e22";
-                            //將房間對戰狀態同步給對手
+                    if (!isLegFullyVisible) {
+                        canvasCtx.restore();
+                        return;
+                    }
+
+                    let angle = calculateAngle(hip, knee, ankle);
+                    //直抬腿動作判定邏輯
+                    if (angle > 160 && localStage === "DOWN") {
+                        localStage = "UP";
+                        actionStartTime = Date.now();
+                        document.getElementById('p1-stage').innerText = "抬腿";
+                        document.getElementById('p1-stage').style.color = "#e67e22";
+                        if (currentRoom) {
+                            socket.emit('sync_score_status', { room: currentRoom, stage: localStage });
+                        }
+                    }
+                    else if (angle < 130 && localStage === "UP") {
+                        const now = Date.now();
+                        if (actionStartTime !== null && (now - actionStartTime) > 1000) {
+                            localStage = "DOWN";
+                            localCounter += 1;
+
+                            document.getElementById('p1-score').innerText = localCounter;
+                            document.getElementById('p1-stage').innerText = "放下";
+                            document.getElementById('p1-stage').style.color = "#3498db";
+
+                            let holdDuration = Math.round((now - actionStartTime) / 1000 * 100) / 100;
+                            localDurations.push(holdDuration);
+
+                            if (currentRoom) {
+                                socket.emit('sync_score_status', {
+                                    room: currentRoom,
+                                    score: localCounter,
+                                    stage: localStage
+                                });
+                            }
+                        }
+                        // 如果沒撐滿 1 秒就放下了，視為無效震盪，直接重置狀態不加分
+                        else if (actionStartTime !== null) {
+                            localStage = "DOWN";
+                            document.getElementById('p1-stage').innerText = "放下";
+                            document.getElementById('p1-stage').style.color = "#3498db";
                             if (currentRoom) {
                                 socket.emit('sync_score_status', { room: currentRoom, stage: localStage });
                             }
                         }
-                        else if (angle < 130 && localStage === "UP") {
-                            const now = Date.now();
-                            if (actionStartTime !== null && (now - actionStartTime) > 1000) {
-                                localStage = "DOWN";
-                                localCounter += 1;
-
-                                document.getElementById('p1-score').innerText = localCounter;
-                                document.getElementById('p1-stage').innerText = "放下";
-                                document.getElementById('p1-stage').style.color = "#3498db";
-
-                                // 計算這一下維持了幾秒（除以 1000 轉換為秒，四捨五入到小數點後兩位）
-                                let holdDuration = Math.round((now - actionStartTime) / 1000 * 100) / 100;
-                                localDurations.push(holdDuration);
-
-                                //透過WebSocket將最新次數與狀態同步給房間內對手
-                                if (currentRoom) {
-                                    socket.emit('sync_score_status', {
-                                        room: currentRoom,
-                                        score: localCounter,
-                                        stage: localStage
-                                    });
-                                }
-                            }
-                            // 如果沒撐滿 1 秒就放下了，視為無效震盪，直接重置狀態不加分
-                            else if (actionStartTime !== null) {
-                                localStage = "DOWN";
-                                document.getElementById('p1-stage').innerText = "放下";
-                                document.getElementById('p1-stage').style.color = "#3498db";
-                                if (currentRoom) {
-                                    socket.emit('sync_score_status', { room: currentRoom, stage: localStage });
-                                }
-                            }
-                        }
                     }
                 }
-                canvasCtx.restore();
 
-                //自動存檔檢測
+                // 自動存檔檢測（放在 onResults 內，因為使用 lastSeenTime）
                 if (localCounter > 0 && (Date.now() - lastSeenTime > 3000) && !isSaving) {
                     isSaving = true;
 
                     const toast = document.getElementById('save-toast');
-                    toast.style.display = 'block';
+                    if (toast) toast.style.display = 'block';
 
                     socket.emit('save_rehab_record', {
                         count: localCounter,
                         durations: localDurations
                     });
                 }
+
+                canvasCtx.restore();
             });
 
             const camera = new Camera(videoElement, {
@@ -1042,7 +1048,7 @@
                 height: 480
             });
             camera.start();
-        }
+        } 
 
         // 後端回傳存檔成功
         socket.on('response_save_success', function (data) {
