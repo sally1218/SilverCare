@@ -1,6 +1,7 @@
 import os
 import sqlite3
 import json
+from datetime import datetime
 from flask import Flask, render_template, redirect, url_for, request, session, flash
 from flask_socketio import SocketIO, emit, join_room, leave_room
 
@@ -216,9 +217,11 @@ def handle_save_record(data):
             json_durations = json.dumps(durations)
             conn = sqlite3.connect('rehab.db')
             cursor = conn.cursor()
+            # 使用伺服器本地時間（避免 SQLite CURRENT_TIMESTAMP 使用 UTC 時區）
+            now_local = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute(
-                "INSERT INTO records (username, action, count, duration_data) VALUES (?, ?, ?, ?)",
-                (username, 'leg_raise', count, json_durations)
+                "INSERT INTO records (username, action, count, duration_data, date) VALUES (?, ?, ?, ?, ?)",
+                (username, 'leg_raise', count, json_durations, now_local)
             )
             conn.commit()
             conn.close()
