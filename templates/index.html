@@ -888,6 +888,7 @@
         let lastSeenTime = Date.now();
         let isSaving = false;
         let lockedSide = null;
+        const VISIBILITY_THRESHOLD = 0.5;
         let lowVisibilityCount = 0;
 
         // 計算骨骼點角度
