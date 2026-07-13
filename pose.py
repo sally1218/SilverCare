@@ -1,10 +1,13 @@
 import os
-import sqlite3
 import json
 import psycopg2
 from datetime import datetime
+from zoneinfo import ZoneInfo
+from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, url_for, request, session, flash
 from flask_socketio import SocketIO, emit, join_room, leave_room
+
+load_dotenv() # 讀取本機 
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", os.urandom(24).hex())
@@ -13,55 +16,40 @@ socketio = SocketIO(app, async_mode='threading', cors_allowed_origins="*")
 sid_to_room = {}   # { socket_id: room_name }
 sid_to_user = {}   # { socket_id: username }
 
+TAIWAN_TZ = ZoneInfo("Asia/Taipei")
 Database_URL = os.environ.get("DATABASE_URL")
 
 def get_db_connection():
-    """ 自動判斷：有雲端網址就連 Supabase，沒有就連本地 SQLite """
-    if Database_URL:
-        return psycopg2.connect(Database_URL, sslmode='require')
-    else:
-        return sqlite3.connect('rehab.db')
+    if not Database_URL:
+        raise RuntimeError("尚未設定 DATABASE_URL 環境變數，請檢查 .env 或部署平台設定")
+    print("連線至 Supabase (PostgreSQL)")
+    return psycopg2.connect(Database_URL, sslmode='require')
 
 # 資料庫初始化
 def init_db():
     conn = get_db_connection()
     cursor = conn.cursor()
     #建立使用者資料表
-    if isinstance(conn, sqlite3.Connection):
-        cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE,
-            password TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS records (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT,
-            action TEXT,
-            count INTEGER,
-            duration_data TEXT,
-            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    else:
-        cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-            id SERIAL PRIMARY KEY,
-            username TEXT UNIQUE,
-            password TEXT)''')
-        cursor.execute('''CREATE TABLE IF NOT EXISTS records (
-            id SERIAL PRIMARY KEY,
-            username TEXT,
-            action TEXT,
-            count INTEGER,
-            duration_data TEXT,
-            date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username TEXT UNIQUE,
+        password TEXT)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS records (
+        id SERIAL PRIMARY KEY,
+        username TEXT,
+        action TEXT,
+        count INTEGER,
+        duration_data TEXT,
+        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_records_username ON records(username)''')
     try:
-        p_mark = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-        cursor.execute(f"INSERT INTO users (username, password) VALUES ({p_mark}, {p_mark})", ('sally', '1234'))
+        cursor.execute("INSERT INTO users (username, password) VALUES (%s, %s)", ('sally', '1234'))
         conn.commit()
     except Exception:
-        if not isinstance(conn, sqlite3.Connection):
-            conn.rollback() 
-            
+        conn.rollback()
     conn.close()
-
 init_db()
+
 @app.route('/')
 def index():
     if 'user' not in session:
@@ -71,19 +59,12 @@ def index():
     conn = get_db_connection()
     cursor = conn.cursor()
     # 讀取復健紀錄
-    p_mark = "?" if isinstance(conn, sqlite3.Connection) else "%s"
     cursor.execute(f"""
-        SELECT strftime('%m-%d %H:%M', date,'localtime'), action, count, duration_data
-        FROM records
-        WHERE username={p_mark}
-        ORDER BY date ASC
-    """ if isinstance(conn, sqlite3.Connection) else f"""
         SELECT to_char(date, 'MM-DD HH24:MI'), action, count, duration_data
         FROM records
-        WHERE username={p_mark}
+        WHERE username=%s
         ORDER BY date ASC
-    """, (username,))
-    
+    """, (username,))    
     rows = cursor.fetchall()
     conn.close()
 
@@ -112,15 +93,13 @@ def index():
 def login_page():
     return render_template('login.html')
 
-
 @app.route('/login', methods=['POST'])
 def login():
     username = request.form.get('username')
     password = request.form.get('password')
     conn = get_db_connection()
     cursor = conn.cursor()
-    p_mark = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-    cursor.execute(f"SELECT * FROM users WHERE username={p_mark}", (username,))
+    cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
     user = cursor.fetchone()
     conn.close()
 
@@ -147,18 +126,17 @@ def register():
     conn = get_db_connection()
     cursor = conn.cursor()
     try:
-        p_mark = "?" if isinstance(conn, sqlite3.Connection) else "%s"
-        cursor.execute(f"INSERT INTO users (username, password) VALUES ({p_mark}, {p_mark})", (username, password))
+        cursor.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, password))
         conn.commit()
         conn.close()
         flash("註冊成功！現在您可以點擊下方返回登入了。", "success")
         return redirect(url_for('register_page'))
-    except Exception as e:
-        if not isinstance(conn, sqlite3.Connection):
-            conn.rollback()
-        conn.close()
+    except Exception:
+        conn.rollback()
         flash("這個帳號已經有人用了，換一個試試看？", "danger")
         return redirect(url_for('register_page'))
+    finally:
+        conn.close()
 
 @app.route('/logout')
 def logout():
@@ -186,27 +164,22 @@ def handle_create_room(data):
     room = str(data.get('room', '')).strip()
     if not room:
         return
-
     sid = request.sid
     join_room(room)
     sid_to_room[sid] = room
     sid_to_user[sid] = session.get('user')
-
     print(f"【系統】[{session.get('user')}] 創建並進入房間: {room} (sid={sid})")
     emit('room_created', {'room': room}, to=sid)
-
 
 @socketio.on('join_room')
 def handle_join_room(data):
     room = str(data.get('room', '')).strip()
     if not room:
         return
-
     sid = request.sid
     join_room(room)
     sid_to_room[sid] = room
     sid_to_user[sid] = session.get('user')
-
     print(f"【系統】[{session.get('user')}] 加入房間: {room} (sid={sid})")
 
     # 通知自己加入成功
@@ -214,15 +187,12 @@ def handle_join_room(data):
     # 通知房間內其他人（房主），有對手加入了，可以開始 WebRTC 連線
     emit('opponent_joined', {'room': room}, room=room, include_self=False)
 
-
 @socketio.on('signal')
 def handle_signal(data):
     room = data.get('room')
     if not room:
         return
-    # data 內容預期: { room, type: 'offer'|'answer'|'candidate', sdp / candidate }
     emit('signal', data, room=room, include_self=False)
-
 
 # 接收前端算好的分數與狀態，並同步給房間內的對手
 @socketio.on('sync_score_status')
@@ -252,19 +222,17 @@ def handle_save_record(data):
         try:
             json_durations = json.dumps(durations)
             # 使用伺服器本地時間（避免 SQLite CURRENT_TIMESTAMP 使用 UTC 時區）
-            now_local = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            p_mark = "?" if isinstance(conn, sqlite3.Connection) else "%s"
+            now_local = datetime.now(TAIWAN_TZ).strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute(
-                f"INSERT INTO records (username, action, count, duration_data, date) VALUES ({p_mark}, {p_mark}, {p_mark}, {p_mark}, {p_mark})",
+                "INSERT INTO records (username, action, count, duration_data, date) VALUES (%s, %s, %s, %s, %s)",
                 (username, 'leg_raise', count, json_durations, now_local)
             )
             conn.commit()
             print(f"--- 雲端/本地資料庫存檔成功： [{username}] 完成直抬腿 {count} 次 ---")
             emit('response_save_success', {'saved': True})
         except Exception as e:
-            if not isinstance(conn, sqlite3.Connection):
-                conn.rollback()
-            print(f"❌ 資料庫寫入失敗: {e}")
+            conn.rollback()
+            print(f"資料庫寫入失敗: {e}")
         finally:
             conn.close()
 
