@@ -205,6 +205,14 @@ def handle_sync_score_status(data):
         'stage': data.get('stage')
     }, room=room, include_self=False)
 
+@socketio.on('update_view')
+def handle_update_view(data):
+    room = data.get('room')
+    if not room:
+        return
+    emit('update_opponent_view', {
+        'stage': data.get('stage')
+    }, room=room, include_self=False)
 
 # 儲存復健紀錄
 @socketio.on('save_rehab_record')
@@ -221,7 +229,7 @@ def handle_save_record(data):
         cursor = conn.cursor()
         try:
             json_durations = json.dumps(durations)
-            # 使用伺服器本地時間（避免 SQLite CURRENT_TIMESTAMP 使用 UTC 時區）
+            # 使用伺服器本地時間
             now_local = datetime.now(TAIWAN_TZ).strftime("%Y-%m-%d %H:%M:%S")
             cursor.execute(
                 "INSERT INTO records (username, action, count, duration_data, date) VALUES (%s, %s, %s, %s, %s)",

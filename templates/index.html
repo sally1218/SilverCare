@@ -5,8 +5,6 @@
     <title>基於勸誘式AI復健遊戲</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.socket.io/4.2.0/socket.io.min.js"></script>
-
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
 
     <style>
@@ -432,11 +430,96 @@
                 width: 100%;
                 height: 100%;
             }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+            .modal-overlay.hidden {
+                display: none;
+            }
+
+        .modal-box {
+            background: #fff;
+            border-radius: 20px;
+            padding: 32px 24px;
+            width: 90%;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+
+        .modal-title {
+            font-size: 26px; 
+            font-weight: bold;
+            color: #222;
+            margin-bottom: 8px;
+        }
+
+        .modal-subtitle {
+            font-size: 17px;
+            color: #666;
+            margin-bottom: 28px;
+        }
+
+        .foot-options {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+        }
+
+        .foot-btn {
+            flex: 1;
+            min-height: 140px;
+            border-radius: 16px;
+            border: 3px solid #ddd;
+            background: #fafafa;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            font-size: 22px; 
+            font-weight: bold;
+            color: #333;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+
+            .foot-btn:hover,
+            .foot-btn:focus-visible {
+                border-color: #4a90d9;
+                background: #eaf3fd;
+                outline: none;
+            }
+
+            .foot-btn:active {
+                transform: scale(0.96);
+                background: #d9ebfb;
+            }
     </style>
 </head>
 <body>
 
     <div id="save-toast">復健紀錄與肌肉疲勞分析已自動儲存！</div>
+
+    <div id="statusBar" style="width:95%; max-width:1250px; margin:12px auto; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div id="statusBox" style="font-size:18px;color:#34495e">目前訓練：未選</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <button id="reopenBtn" class="btn-elder-choice" style="padding:8px 12px; font-size:16px;">重新選擇訓練腳</button>
+        </div>
+    </div>
+
+    <div id="confirmToast" style="display:none; position:fixed; top:90px; left:50%; transform:translateX(-50%); background:#27ae60; color:#fff; padding:10px 18px; border-radius:20px; z-index:2000;"></div>
 
     <div id="mySidebar" class="sidebar">
         <span style="position:absolute;top:10px;left:20px;font-size:30px;cursor:pointer" onclick="closeNav()">&times;</span>
@@ -455,6 +538,21 @@
         <button class="menu-btn" onclick="openNav()">☰ 選單</button>
     </div>
 
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-box">
+            <div class="modal-title">請選擇今天要訓練的腳</div>
+            <div class="modal-subtitle">選好之後就會開始</div>
+            <div class="foot-options">
+                <button class="foot-btn" data-foot="left" id="leftBtn">
+                    左腳
+                </button>
+                <button class="foot-btn" data-foot="right" id="rightBtn">
+                    右腳
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="container">
         <div id="live-section">
             <button class="photo-btn-container" onclick="openVideoModal()" title="點擊觀看標準動作說明">
@@ -463,7 +561,7 @@
             <div class="scoreboard">
                 <div class="player-score score-red">對手: <span id="p2-score">0</span> 次</div>
                 <div class="vs-badge">VS</div>
-                <div class="player-score score-green">({{ username }}): <span id="p1-score">0</span> 次</div>
+                <div class="player-score score-green">{{ username }}: <span id="p1-score">0</span> 次</div>
             </div>
 
             <div class="video-arena">
@@ -561,7 +659,48 @@
         let localStream = null;
         let peerConnection = null;
         let isHost = false;
+        let selectfoot = null;
+        let detectionStarted = false;
+        let localVideoEl = null;
+        window.addEventListener('DOMContentLoaded', () => {
+            const modalOverlay = document.getElementById('modalOverlay');
+            const statusBox = document.getElementById('statusBox');
+            const reopenBtn = document.getElementById('reopenBtn');
+            const confirmToast = document.getElementById('confirmToast');
+            const leftBtn = document.getElementById('leftBtn');
+            const rightBtn = document.getElementById('rightBtn');
 
+            function showToast(message) {
+                if (!confirmToast) return;
+                confirmToast.textContent = message;
+                confirmToast.style.display = 'block';
+                setTimeout(() => {
+                    confirmToast.style.display = 'none';
+                }, 2200);
+            }
+
+            function selectFoot(foot) {
+                selectfoot = foot;
+                const footLabel = foot === 'left' ? '左腳' : '右腳';
+                if (statusBox) statusBox.textContent = `目前訓練：${footLabel}`;
+                if (modalOverlay) modalOverlay.classList.add('hidden');
+                showToast('已選擇 ' + footLabel + '，請開始復健訓練！');
+                // 如果攝影機已就緒且尚未啟動偵測，則啟動偵測
+                if (localVideoEl && !detectionStarted) {
+                    detectionStarted = true;
+                    startFrontendDetection(localVideoEl);
+                }
+            }
+
+            // 預設顯示選腳視窗（如果存在）
+            if (modalOverlay) modalOverlay.classList.remove('hidden');
+
+            if (leftBtn) leftBtn.addEventListener('click', () => selectFoot('left'));
+            if (rightBtn) rightBtn.addEventListener('click', () => selectFoot('right'));
+            if (reopenBtn) reopenBtn.addEventListener('click', () => { if (modalOverlay) modalOverlay.classList.remove('hidden'); });
+        });
+
+        // WebRTC 的 ICE 伺服器設定（STUN/TURN）
         const rtcConfig = {
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -836,7 +975,7 @@
             };
 
             // 監聽 ICE 連線狀態（除錯用）
-            peerConnection.oniceconnectionstatechange = () => {
+            peerConnection.onconnectionstatechange = () => {
                 if (peerConnection.connectionState === 'disconnected' || peerConnection.connectionState === 'failed') {
                     handleOpponentLeave();
                 }
@@ -887,9 +1026,7 @@
         let localDurations = [];
         let lastSeenTime = Date.now();
         let isSaving = false;
-        let lockedSide = null;
-        const VISIBILITY_THRESHOLD = 0.5;
-        let lowVisibilityCount = 0;
+
 
         // 計算骨骼點角度
         function calculateAngle(p1, p2, p3) {
@@ -897,44 +1034,6 @@
             let angle = Math.abs((radians * 180.0) / Math.PI);
             if (angle > 180.0) angle = 360 - angle;
             return angle;
-        }
-        //挑選要用左腳還是右腳
-        function pickLegLandmarks(poseLandmarks) {
-            const leftHip = poseLandmarks[23];
-            const leftKnee = poseLandmarks[25];
-            const leftAnkle = poseLandmarks[27];
-            const rightHip = poseLandmarks[24];
-            const rightKnee = poseLandmarks[26];
-            const rightAnkle = poseLandmarks[28];
-
-            const leftVis = (leftHip && leftKnee && leftAnkle)
-                ? (leftHip.visibility + leftKnee.visibility + leftAnkle.visibility) / 3 : 0;
-            const rightVis = (rightHip && rightKnee && rightAnkle)
-                ? (rightHip.visibility + rightKnee.visibility + rightAnkle.visibility) / 3 : 0;
-
-            // 第一次判斷，還沒鎖定過
-            if (lockedSide === null) {
-                lockedSide = leftVis > rightVis ? 'left' : 'right';
-            }
-
-            const currentVis = lockedSide === 'left' ? leftVis : rightVis;
-
-            // 使用內嵌數值避免宣告缺失，並維持較寬鬆的可見度門檻與快速切換
-            if (currentVis < 0.4) {
-                lowVisibilityCount++;
-                if (lowVisibilityCount > 10) {
-                    lockedSide = leftVis > rightVis ? 'left' : 'right';
-                    lowVisibilityCount = 0;
-                }
-            } else {
-                lowVisibilityCount = 0;
-            }
-
-            if (lockedSide === 'left') {
-                return { hip: leftHip, knee: leftKnee, ankle: leftAnkle, visibility: leftVis };
-            } else {
-                return { hip: rightHip, knee: rightKnee, ankle: rightAnkle, visibility: rightVis };
-            }
         }
 
         function startFrontendDetection(videoElement) {
@@ -968,30 +1067,42 @@
 
                 if (results.poseLandmarks) {
                     lastSeenTime = Date.now();
-                    const { hip, knee, ankle, visibility } = pickLegLandmarks(results.poseLandmarks);
-                    const isLegFullyVisible =
-                        hip && knee && ankle &&
-                        hip.visibility > VISIBILITY_THRESHOLD &&
-                        knee.visibility > VISIBILITY_THRESHOLD &&
-                        ankle.visibility > VISIBILITY_THRESHOLD;
+                    let hipIdx, kneeIdx, ankleIdx;
+                    if (selectfoot === 'left') {
+                        hipIdx = 23; kneeIdx = 25; ankleIdx = 27;
+                    } else if (selectfoot === 'right') {
+                        hipIdx = 24; kneeIdx = 26; ankleIdx = 28;
+                    } else {
+                        const lHip = results.poseLandmarks[23], lKnee = results.poseLandmarks[25], lAnk = results.poseLandmarks[27];
+                        const rHip = results.poseLandmarks[24], rKnee = results.poseLandmarks[26], rAnk = results.poseLandmarks[28];
+                        //三個點的平均可信度
+                        const leftVis = (((lHip && lHip.visibility) || 0) + ((lKnee && lKnee.visibility) || 0) + ((lAnk && lAnk.visibility) || 0)) / 3;
+                        const rightVis = (((rHip && rHip.visibility) || 0) + ((rKnee && rKnee.visibility) || 0) + ((rAnk && rAnk.visibility) || 0)) / 3;
 
-                    if (!isLegFullyVisible) {
+                        if (leftVis >= rightVis) { hipIdx = 23; kneeIdx = 25; ankleIdx = 27; }
+                        else { hipIdx = 24; kneeIdx = 26; ankleIdx = 28; }
+                    }
+
+                    const hip = results.poseLandmarks[hipIdx];
+                    const knee = results.poseLandmarks[kneeIdx];
+                    const ankle = results.poseLandmarks[ankleIdx];
+
+                    if (!hip || !knee || !ankle) {
                         canvasCtx.restore();
                         return;
                     }
 
                     let angle = calculateAngle(hip, knee, ankle);
-                    //直抬腿動作判定邏輯
+
                     if (angle > 160 && localStage === "DOWN") {
                         localStage = "UP";
                         actionStartTime = Date.now();
                         document.getElementById('p1-stage').innerText = "抬腿";
                         document.getElementById('p1-stage').style.color = "#e67e22";
                         if (currentRoom) {
-                            socket.emit('sync_score_status', { room: currentRoom, stage: localStage });
+                            socket.emit('update_view', { room: currentRoom, stage: localStage });
                         }
-                    }
-                    else if (angle < 130 && localStage === "UP") {
+                    } else if (angle < 130 && localStage === "UP") {
                         const now = Date.now();
                         if (actionStartTime !== null && (now - actionStartTime) > 1000) {
                             localStage = "DOWN";
@@ -1011,9 +1122,7 @@
                                     stage: localStage
                                 });
                             }
-                        }
-                        // 如果沒撐滿 1 秒就放下了，視為無效震盪，直接重置狀態不加分
-                        else if (actionStartTime !== null) {
+                        } else if (actionStartTime !== null) {
                             localStage = "DOWN";
                             document.getElementById('p1-stage').innerText = "放下";
                             document.getElementById('p1-stage').style.color = "#3498db";
@@ -1024,31 +1133,39 @@
                     }
                 }
 
-                // 自動存檔檢測（放在 onResults 內，因為使用 lastSeenTime）
+                canvasCtx.restore();
+
+                // 自動存檔檢測
                 if (localCounter > 0 && (Date.now() - lastSeenTime > 3000) && !isSaving) {
                     isSaving = true;
 
                     const toast = document.getElementById('save-toast');
-                    if (toast) toast.style.display = 'block';
+                    toast.style.display = 'block';
 
                     socket.emit('save_rehab_record', {
                         count: localCounter,
                         durations: localDurations
                     });
                 }
-
-                canvasCtx.restore();
             });
 
-            const camera = new Camera(videoElement, {
-                onFrame: async () => {
+            let detectionActive = true;
+
+            async function detectFrame() {
+                if (!detectionActive) return;
+                if (videoElement.readyState >= 2) {
                     await pose.send({ image: videoElement });
-                },
-                width: 640,
-                height: 480
-            });
-            camera.start();
-        } 
+                }
+                if (detectionActive) {
+                    requestAnimationFrame(detectFrame);
+                }
+            }
+            detectFrame();
+
+            return function stopDetection() {
+                detectionActive = false;
+            };
+        }
 
         // 後端回傳存檔成功
         socket.on('response_save_success', function (data) {
@@ -1079,15 +1196,22 @@
         }
 
         window.addEventListener('DOMContentLoaded', () => {
-            const localVideo = document.getElementById('p1-local-video');
+            // 取得影片元素，但延後啟動偵測，直到使用者選擇要訓練的腳
+            localVideoEl = document.getElementById('p1-local-video');
 
             navigator.mediaDevices.getUserMedia({ video: true, audio: false })
                 .then((stream) => {
                     localStream = stream;
-                    localVideo.srcObject = stream;
-                    localVideo.onloadedmetadata = () => {
-                        startFrontendDetection(localVideo);
-                    };
+                    if (localVideoEl) {
+                        localVideoEl.srcObject = stream;
+                        localVideoEl.onloadedmetadata = () => {
+                            // 若使用者已經選了腳，則立刻啟動偵測；否則等使用者按鈕觸發
+                            if (selectfoot && !detectionStarted) {
+                                detectionStarted = true;
+                                startFrontendDetection(localVideoEl);
+                            }
+                        };
+                    }
                 })
                 .catch((err) => {
                     console.error("相機或麥克風存取遭拒", err);
