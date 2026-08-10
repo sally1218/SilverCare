@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 from dotenv import load_dotenv
 from flask import Flask, render_template, redirect, url_for, request, session, flash
 from flask_socketio import SocketIO, emit, join_room, leave_room
+from werkzeug.security import generate_password_hash, check_password_hash
 
 load_dotenv() # 讀取本機 
 
@@ -28,26 +29,23 @@ def get_db_connection():
 # 資料庫初始化
 def init_db():
     conn = get_db_connection()
-    cursor = conn.cursor()
-    #建立使用者資料表
-    cursor.execute('''CREATE TABLE IF NOT EXISTS users (
-        id SERIAL PRIMARY KEY,
-        username TEXT UNIQUE,
-        password TEXT)''')
-    cursor.execute('''CREATE TABLE IF NOT EXISTS records (
-        id SERIAL PRIMARY KEY,
-        username TEXT,
-        action TEXT,
-        count INTEGER,
-        duration_data TEXT,
-        date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
-    cursor.execute('''CREATE INDEX IF NOT EXISTS idx_records_username ON records(username)''')
     try:
-        cursor.execute("INSERT INTO users (username, password) VALUES (%s, %s)", ('sally', '1234'))
-        conn.commit()
-    except Exception:
-        conn.rollback()
-    conn.close()
+        with conn:
+            with conn.cursor() as cursor:
+                cursor.execute('''CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT UNIQUE,
+                    password TEXT)''')
+                cursor.execute('''CREATE TABLE IF NOT EXISTS records (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT,
+                    action TEXT,
+                    count INTEGER,
+                    duration_data TEXT,
+                    date TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+                cursor.execute('''CREATE INDEX IF NOT EXISTS idx_records_username ON records(username)''')
+    finally:
+        conn.close()
 init_db()
 
 @app.route('/')
@@ -96,20 +94,18 @@ def login_page():
 @app.route('/login', methods=['POST'])
 def login():
     username = request.form.get('username')
-    password = request.form.get('password')
+    password = request.form.get('password') 
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM users WHERE username=%s", (username,))
     user = cursor.fetchone()
     conn.close()
-
-    if user and user[2] == password:
+    if user and check_password_hash(user[2], password):
         session['user'] = username
         return redirect(url_for('index'))
     else:
         flash('帳號或密碼錯誤，請再確認一次!', 'error')
         return redirect(url_for('login_page'))
-
 
 @app.route('/register_page')
 def register_page():
@@ -118,22 +114,32 @@ def register_page():
 
 @app.route('/register', methods=['POST'])
 def register():
-    username = request.form.get('username')
-    password = request.form.get('password')
+    username = (request.form.get('username') or '').strip()
+    password = request.form.get('password') or ''
     if not username or not password:
         flash("帳號與密碼不能為空喔！", "warning")
         return redirect(url_for('register_page'))
+
+    hash_password = generate_password_hash(password)
     conn = get_db_connection()
-    cursor = conn.cursor()
     try:
-        cursor.execute("INSERT INTO users (username, password) VALUES (%s, %s)", (username, password))
-        conn.commit()
-        conn.close()
+        with conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT 1 FROM users WHERE username=%s", (username,))
+                if cursor.fetchone():
+                    flash("這個帳號已經有人用了，換一個試試看？", "danger")
+                    return redirect(url_for('register_page'))
+
+                cursor.execute(
+                    "INSERT INTO users (username, password) VALUES (%s, %s)",
+                    (username, hash_password)
+                )
         flash("註冊成功！現在您可以點擊下方返回登入了。", "success")
         return redirect(url_for('register_page'))
-    except Exception:
-        conn.rollback()
-        flash("這個帳號已經有人用了，換一個試試看？", "danger")
+    except Exception as e:
+        # 記錄完整錯誤，便於追蹤實際原因
+        app.logger.exception("註冊失敗")
+        flash("註冊失敗，請稍後重試。", "danger")
         return redirect(url_for('register_page'))
     finally:
         conn.close()

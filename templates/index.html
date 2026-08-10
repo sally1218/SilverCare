@@ -333,7 +333,7 @@
             font-size: 24px;
             padding: 18px 10px;
             font-weight: bold;
-            color: white;
+            color: black;
             border: none;
             border-radius: 12px;
             cursor: pointer;
@@ -512,13 +512,6 @@
 
     <div id="save-toast">復健紀錄與肌肉疲勞分析已自動儲存！</div>
 
-    <div id="statusBar" style="width:95%; max-width:1250px; margin:12px auto; display:flex; justify-content:space-between; align-items:center; gap:12px;">
-        <div id="statusBox" style="font-size:18px;color:#34495e">目前訓練：未選</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-            <button id="reopenBtn" class="btn-elder-choice" style="padding:8px 12px; font-size:16px;">重新選擇訓練腳</button>
-        </div>
-    </div>
-
     <div id="confirmToast" style="display:none; position:fixed; top:90px; left:50%; transform:translateX(-50%); background:#27ae60; color:#fff; padding:10px 18px; border-radius:20px; z-index:2000;"></div>
 
     <div id="mySidebar" class="sidebar">
@@ -536,6 +529,13 @@
     <div class="nav-header">
         <span>基於勸誘式AI復健遊戲</span>
         <button class="menu-btn" onclick="openNav()">☰ 選單</button>
+    </div>
+
+    <div id="statusBar" style="width:95%; max-width:1250px; margin:12px auto; display:flex; justify-content:space-between; align-items:center; gap:12px;">
+        <div id="statusBox" style="font-size:18px;color:#34495e">目前訓練：未選</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <button id="reopenBtn" class="btn-elder-choice" style="padding:8px 12px; font-size:16px;">重新選擇訓練腳</button>
+        </div>
     </div>
 
     <div class="modal-overlay" id="modalOverlay">
