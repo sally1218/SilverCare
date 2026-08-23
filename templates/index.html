@@ -751,34 +751,6 @@
             // 取得影片元素，但延後啟動偵測，直到使用者選擇要訓練的腳
             localVideoEl = document.getElementById('p1-local-video');
 
-            // use lower resolution / frameRate and prefer front camera on mobile to reduce load
-            const constraints = {
-                video: {
-                    facingMode: 'user',
-                    width: { ideal: 640 },
-                    height: { ideal: 480 },
-                    frameRate: { ideal: 20, max: 30 }
-                },
-                audio: false
-            };
-
-            navigator.mediaDevices.getUserMedia(constraints)
-                .then((stream) => {
-                    localStream = stream;
-                    if (localVideoEl) {
-                        localVideoEl.srcObject = stream;
-                        localVideoEl.onloadedmetadata = () => {
-                            // 若使用者已經選了腳，則立刻啟動偵測；否則等使用者按鈕觸發
-                            if (selectfoot && !detectionStarted) {
-                                detectionStarted = true;
-                                startFrontendDetection(localVideoEl);
-                            }
-                        };
-                    }
-                })
-                .catch((err) => {
-                    console.error("相機或麥克風存取遭拒", err);
-                });
         });
 
         // WebRTC 的 ICE 伺服器設定（STUN/TURN）
@@ -1298,9 +1270,6 @@
                 check();
             });
         }
-
-        // Note: camera acquisition is performed when user selects a foot (user gesture) to avoid
-        // mobile browsers blocking getUserMedia or pausing hidden video elements.
     </script>
 </body>
 </html>
