@@ -584,6 +584,7 @@
                         <video id="p1-local-video" autoplay playsinline muted style="display: none;"></video>
                     </div>
                     <div class="player-action-status">您的狀態：<span id="p1-stage" style="color:#3498db;">放下</span></div>
+                    <div id="p1-hint" style="margin-top:8px; font-weight:600; color:#e74c3c;"></div>
                 </div>
             </div>
 
@@ -692,12 +693,32 @@
                 }
             }
 
-            // 預設顯示選腳視窗（如果存在）
+            // 預設顯示選腳視窗
             if (modalOverlay) modalOverlay.classList.remove('hidden');
-
             if (leftBtn) leftBtn.addEventListener('click', () => selectFoot('left'));
             if (rightBtn) rightBtn.addEventListener('click', () => selectFoot('right'));
             if (reopenBtn) reopenBtn.addEventListener('click', () => { if (modalOverlay) modalOverlay.classList.remove('hidden'); });
+
+            // 取得影片元素，但延後啟動偵測，直到使用者選擇要訓練的腳
+            localVideoEl = document.getElementById('p1-local-video');
+
+            navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+                .then((stream) => {
+                    localStream = stream;
+                    if (localVideoEl) {
+                        localVideoEl.srcObject = stream;
+                        localVideoEl.onloadedmetadata = () => {
+                            // 若使用者已經選了腳，則立刻啟動偵測；否則等使用者按鈕觸發
+                            if (selectfoot && !detectionStarted) {
+                                detectionStarted = true;
+                                startFrontendDetection(localVideoEl);
+                            }
+                        };
+                    }
+                })
+                .catch((err) => {
+                    console.error("相機或麥克風存取遭拒", err);
+                });
         });
 
         // WebRTC 的 ICE 伺服器設定（STUN/TURN）
@@ -1067,22 +1088,45 @@
 
                 if (results.poseLandmarks) {
                     lastSeenTime = Date.now();
-                    let hipIdx, kneeIdx, ankleIdx;
-                    if (selectfoot === 'left') {
-                        hipIdx = 23; kneeIdx = 25; ankleIdx = 27;
-                    } else if (selectfoot === 'right') {
-                        hipIdx = 24; kneeIdx = 26; ankleIdx = 28;
-                    } else {
-                        const lHip = results.poseLandmarks[23], lKnee = results.poseLandmarks[25], lAnk = results.poseLandmarks[27];
-                        const rHip = results.poseLandmarks[24], rKnee = results.poseLandmarks[26], rAnk = results.poseLandmarks[28];
-                        //三個點的平均可信度
-                        const leftVis = (((lHip && lHip.visibility) || 0) + ((lKnee && lKnee.visibility) || 0) + ((lAnk && lAnk.visibility) || 0)) / 3;
-                        const rightVis = (((rHip && rHip.visibility) || 0) + ((rKnee && rKnee.visibility) || 0) + ((rAnk && rAnk.visibility) || 0)) / 3;
-
-                        if (leftVis >= rightVis) { hipIdx = 23; kneeIdx = 25; ankleIdx = 27; }
-                        else { hipIdx = 24; kneeIdx = 26; ankleIdx = 28; }
+                    if (!selectfoot) {
+                        canvasCtx.restore();
+                        return;
                     }
-
+                    let hipIdx = (selectfoot === 'left') ? 23 : 24;
+                    let kneeIdx = (selectfoot === 'left') ? 25 : 26;
+                    let ankleIdx = (selectfoot === 'left') ? 27 : 28;
+                    // 檢查所選側的可視度（只檢查所選側，不與另一側比較）
+                    const leftLegVisibilities = [
+                        results.poseLandmarks[23].visibility,
+                        results.poseLandmarks[25].visibility,
+                        results.poseLandmarks[27].visibility
+                    ];
+                    const rightLegVisibilities = [
+                        results.poseLandmarks[24].visibility,
+                        results.poseLandmarks[26].visibility,
+                        results.poseLandmarks[28].visibility
+                    ];
+                    const VISIBILITY_THRESHOLD = 0.7; 
+                    const selectedVis = (selectfoot === 'left') ? leftLegVisibilities : rightLegVisibilities;
+                    const visibleCount = selectedVis.filter(v => v >= VISIBILITY_THRESHOLD).length;
+                    let errorMessage = "";
+                    if (visibleCount < 2) {
+                        errorMessage = (selectfoot === 'left') ?
+                            "左腳偵測不穩定，請確保左腳靠近鏡頭或光線充足" :
+                            "右腳偵測不穩定，請確保右腳靠近鏡頭或光線充足";
+                    }
+                    const stageEl = document.getElementById('p1-stage');
+                    if (errorMessage !== "") {
+                        // 顯示提示並略過本次影格處理（不計次數）
+                        stageEl.innerText = errorMessage;
+                        stageEl.style.color = "#e74c3c";
+                        canvasCtx.restore();
+                        return;
+                    } else {
+                        stageEl.innerText = (localStage === "UP") ? "抬腿" : "放下";
+                        stageEl.style.color = (localStage === "UP") ? "#e67e22" : "#3498db";
+                    }
+                    //取得正確的關節點
                     const hip = results.poseLandmarks[hipIdx];
                     const knee = results.poseLandmarks[kneeIdx];
                     const ankle = results.poseLandmarks[ankleIdx];
